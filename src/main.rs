@@ -12,12 +12,13 @@ fn main() {
     let app = monitor::MonitorApp::new();
     let measurements = app.measurements.clone();
     for i in 0..8 {
+        let key: String = ["y",&i.to_string()].join("");
         measurements
         .lock()
         .unwrap()
-        .insert(i.to_string(), 
-            measurements::MeasurementWindow::new_with_look_behind(10000),
-        );
+        .insert(key.clone(),
+            measurements::MeasurementWindow::new_with_look_behind(10_000));
+        println!("Creating window for {}", key);
     }
     
     let port = app.port.clone();
