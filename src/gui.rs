@@ -13,7 +13,7 @@ extern crate csv;
 pub fn egui_init(app: MonitorApp) {
     let options = eframe::NativeOptions {
         transparent: true,
-        initial_window_size: Some(egui::vec2(2000.0, 1500.0)),
+        initial_window_size: Some(egui::vec2(1000.0, 800.0)),
         resizable: true,
         ..Default::default()
     };
