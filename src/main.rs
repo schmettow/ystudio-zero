@@ -11,13 +11,13 @@ fn main() {
     helpers::setup_subscriber();
     let app = monitor::MonitorApp::new();
     let measurements = app.measurements.clone();
-    for i in 0..8 {
-        let key: String = ["y",&i.to_string()].join("");
+    for key in ylab::yld::CHAN_IDS {
+        //let key: String = ["y",&i.to_string()].join("");
         measurements
         .lock()
         .unwrap()
-        .insert(key.clone(),
-            measurements::MeasurementWindow::new_with_look_behind(10_000));
+        .insert(key.into(),
+            measurements::MeasurementWindow::new_with_look_behind(1000));
         println!("Creating window for {}", key);
     }
     
