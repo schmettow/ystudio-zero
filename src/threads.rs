@@ -15,7 +15,7 @@ const BAUD: u32 = 2_000_000;
 
 pub fn serial_thread(
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
-    history: Arc<Mutex<History<Sample>>>,
+    _history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
     serial_data: Arc<Mutex<Vec<String>>>,
