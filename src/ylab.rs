@@ -24,34 +24,36 @@ pub mod yld{
     pub enum ParseError {
         Len(usize), 
         Dev(String), 
-        Time(String), 
-        Read(String)}
+        Time(String)}
     
     pub type FailableSample = Result<Sample, ParseError>;
 
     impl Sample {
         pub fn from_csv_line(line: &String) -> FailableSample {
+            // splitting
             let cols: Vec<&str> = line.split(",").collect();
+            // check correct length
             if cols.len() != 10 {return Err(ParseError::Len(cols.len()))};
-            
+            // extract time stamp
             let time = cols[0].parse::<i64>();
             if time.is_err() {return Err(ParseError::Time(cols[0].to_string()))}
-            
+            // extract dev number
             let dev = cols[1].parse::<i8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
-            
+            // reading the remaining 8 cols
             let mut read: [u16; 8] = [0,0,0,0,0,0,0,0];
             for chn in 0..8 {
+                // parse value
                 let value 
                     = cols[chn + 2].parse::<u16>();
                 match value {
                     Ok(v) => read[chn] = v,
                     Err(_) => read[chn] = 0
                 }
-                read[chn] = cols[chn + 2]
+                /* read[chn] = cols[chn + 2]
                     .parse::<u16>()
                     .or::<u16>(Ok(0))
-                    .unwrap()
+                    .unwrap()*/
             }
             Ok(Sample{dev: dev.unwrap(), 
                         time: time.unwrap() as i64, 

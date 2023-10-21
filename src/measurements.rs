@@ -54,12 +54,6 @@ impl MeasurementWindow {
         }
     }
 
-    pub fn oldest(&self) -> Option<f64> {
-        match self.values.len() {
-            0 => None,
-            _ => Some(self.values.back().unwrap().x)
-        }
-    }
 
     /// A function to hand over the PlotPoints to the UI
     /// I can only guess, but it seems to create a deep copy.

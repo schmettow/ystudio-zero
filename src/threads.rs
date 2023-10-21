@@ -5,14 +5,12 @@ use crate::ylab::yld::{Sample, self};
 
 use serialport;
 use std::collections::HashMap;
-use std::io::Write;
-use std::io::{self};
 use std::io::{BufReader, BufRead};
 use std::sync::*;
-use std::thread;
-use std::time::{Duration};
+// use std::thread;
+use std::time::Duration;
 use egui::emath::History;
-const baud_rate: u32 = 2_000_000;
+const BAUD: u32 = 2_000_000;
 
 
 pub fn serial_thread(
@@ -20,10 +18,7 @@ pub fn serial_thread(
     history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
-    //_variables: Arc<Mutex<Vec<String>>>,
     serial_data: Arc<Mutex<Vec<String>>>,
-    //send_serial: Arc<Mutex<bool>>,
-    //serial_write: Arc<Mutex<String>>,
     ) -> ! {
     
     // Connecting to serial port
@@ -39,7 +34,7 @@ pub fn serial_thread(
                 }}
         }
         let port 
-            = serialport::new(serial_port, baud_rate)
+            = serialport::new(serial_port, BAUD)
                 .timeout(Duration::from_millis(1))
                 .flow_control(serialport::FlowControl::Software)
                 .open();

@@ -1,5 +1,4 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
-use crate::helpers;
 use crate::measurements;
 use crate::monitor::MonitorApp;
 use eframe::egui;
@@ -59,53 +58,6 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
                     ui.selectable_value(&mut *serial_port, i.to_string(), i.to_string());
                 }
             });
-
-       // ui.label("Variables");
-        //ui.text_edit_multiline(&mut app.ui.vars);
-
-        //ui.label("Include Y-axis Range");
-        //ui.text_edit_singleline(&mut app.ui.y_include);
-        // check if the y_include field has been changed
-        if app.ui.y_include != app.ui.y_include_prev {
-            app.ui.y_include_prev = app.ui.y_include.to_owned();
-            // Extracting y-include as a number
-            let a = helpers::parse_str_to_num(&app.ui.y_include);
-            match a.parse::<f32>() {
-                Ok(n) => {
-                    // Locking the Mutex for use
-                    let mut y_range = app.y_include.lock().unwrap();
-                    // changing the dereferenced value
-                    *y_range = n;
-                }
-                Err(_) => (),
-            }
-        }
-
-        /* if ui.button("Export CSV").clicked() {
-            
-            let mut dict = HashMap::new();
-            let meas = app.measurements.lock().unwrap();
-            let m = meas.keys().to_owned();
-            for i in m {
-                let n = meas.get(i).to_owned();
-                for j in n {
-                    let o = j.values.to_owned();
-                    for k in o {
-                        let p = k.x;
-                        let q = k.y;
-                        dict.entry("Time").or_insert(Vec::new()).push(p);
-                        dict.entry(i).or_insert(Vec::new()).push(q);
-                    }
-                }
-            }
-            let mut wtr = csv::Writer::from_path("test.csv").unwrap();
-            for i in dict.keys() {
-                // convert floats to strings because csv::Writer only writes u8's
-                let str_dict = dict[i].clone().into_iter().map(|e| e.to_string());
-                wtr.write_record(str_dict).unwrap();
-            }
-            wtr.flush().unwrap();
-        }*/
     });
 }
 
@@ -119,28 +71,5 @@ pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             .rev()
             .collect::<Vec<String>>();
         ui.label(disp.join("\n"));
-
-        //let mut user_command = app.serial_write.lock().unwrap();
-        //ui.text_edit_singleline(&mut *user_command);
-
-        /*if ui.button("Send").clicked() {
-            user_command.push_str("\n\r");
-            let mut b = app.send_serial.lock().unwrap();
-            *b = true;
-        }*/
-
-        /* ui.text_edit_singleline(&mut app.ui.log_name);
-
-        if ui.button("Save logs").clicked() {
-            match fs::File::create(&app.ui.log_name) {
-                Ok(_) => println!("File created saved succesfully"),
-                Err(e) => eprintln!("{:?}", e),
-            }
-            let log_data = app.serial_data.lock().unwrap().to_owned();
-            match fs::write(&app.ui.log_name, log_data.join("\n")) {
-                Ok(_) => println!("Logs saved succesfully"),
-                Err(e) => eprintln!("{:?}", e),
-            }
-        }*/
     });
 }
