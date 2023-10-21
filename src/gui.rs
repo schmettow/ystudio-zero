@@ -61,10 +61,10 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             });
 
        // ui.label("Variables");
-        ui.text_edit_multiline(&mut app.ui.vars);
+        //ui.text_edit_multiline(&mut app.ui.vars);
 
-        ui.label("Include Y-axis Range");
-        ui.text_edit_singleline(&mut app.ui.y_include);
+        //ui.label("Include Y-axis Range");
+        //ui.text_edit_singleline(&mut app.ui.y_include);
         // check if the y_include field has been changed
         if app.ui.y_include != app.ui.y_include_prev {
             app.ui.y_include_prev = app.ui.y_include.to_owned();
@@ -81,8 +81,8 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             }
         }
 
-        if ui.button("Export CSV").clicked() {
-            /*
+        /* if ui.button("Export CSV").clicked() {
+            
             let mut dict = HashMap::new();
             let meas = app.measurements.lock().unwrap();
             let m = meas.keys().to_owned();
@@ -104,8 +104,8 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
                 let str_dict = dict[i].clone().into_iter().map(|e| e.to_string());
                 wtr.write_record(str_dict).unwrap();
             }
-            wtr.flush().unwrap();*/
-        }
+            wtr.flush().unwrap();
+        }*/
     });
 }
 
@@ -129,7 +129,7 @@ pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             *b = true;
         }*/
 
-        ui.text_edit_singleline(&mut app.ui.log_name);
+        /* ui.text_edit_singleline(&mut app.ui.log_name);
 
         if ui.button("Save logs").clicked() {
             match fs::File::create(&app.ui.log_name) {
@@ -141,6 +141,6 @@ pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
                 Ok(_) => println!("Logs saved succesfully"),
                 Err(e) => eprintln!("{:?}", e),
             }
-        }
+        }*/
     });
 }
