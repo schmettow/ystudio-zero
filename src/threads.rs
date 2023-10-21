@@ -1,7 +1,7 @@
 //use crate::helpers;
 use crate::measurements;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::yld::Sample;
+use crate::ylab::yld::{Sample, self};
 
 use serialport;
 use std::collections::HashMap;
@@ -12,6 +12,8 @@ use std::sync::*;
 use std::thread;
 use std::time::{Duration, Instant};
 
+const baud_rate: u32 = 2_000_000;
+
 
 pub fn serial_thread(
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
@@ -20,8 +22,9 @@ pub fn serial_thread(
     _variables: Arc<Mutex<Vec<String>>>,
     serial_data: Arc<Mutex<Vec<String>>>,
     send_serial: Arc<Mutex<bool>>,
-    serial_write: Arc<Mutex<String>>,
-) -> ! {
+    serial_write: Arc<Mutex<String>>,) -> ! {
+    
+    /// Connecting to serial port
     loop {
         let serial_port = &serial_port.lock().unwrap().to_owned();
         // Look for serial ports
@@ -34,36 +37,43 @@ pub fn serial_thread(
                 }}
         }
         let port 
-            = serialport::new(serial_port, 230_400)
+            = serialport::new(serial_port, baud_rate)
                 .timeout(Duration::from_millis(1))
                 .flow_control(serialport::FlowControl::Software)
                 .open();
         match port {
             Err(_e) => {
-                eprintln!("Failed to open {}", _e);
+                //eprintln!("Failed to open {}", _e);
                 // ::std::process::exit(1);
             },
             Ok(port) => {
+                //let std_start_time = Instant::now();
+                let mut lab_start_time = Duration::ZERO;
+                let mut got_first_line = false;
                 let reader = BufReader::new(port);
+                
+                // Reading serial input by line
                 for line in reader.lines() {
                     if line.is_err() {continue;};
                     let line = line.unwrap();
-                    serial_data
-                            .lock()
-                            .unwrap()
-                            .push(line.to_string().trim().to_owned());
-                    
+                    // try parsing a sample from line
                     let possible_sample 
                         = Sample::from_csv_line(&line);
                     if possible_sample.is_err() {eprintln!("."); continue;}
-                    let sample = possible_sample.unwrap();
+                    // collect sample
+                    let mut sample = possible_sample.unwrap();
+                    // check if this is the first line
+                    if !got_first_line {
+                        lab_start_time = Duration::from_micros(sample.time as u64);
+                        //println!("{}", lab_start_time.as_micros());
+                        got_first_line = true;
+                    }
+
+                    sample.time = (sample.time - lab_start_time.as_micros() as i64) / 1_000_000;
                     println!("{}", sample.to_csv_line());
                         
-                    let chan_ids = [ "y0", "y1", "y2", "y3",
-                                                "y4", "y5", "y6", "y7"];
-                        
                     for chn in 0..8 {
-                        let chan_id  = chan_ids[chn];
+                        let chan_id  = yld::CHAN_IDS[chn];
                         let mut sensory =
                             measurements
                             .lock()
@@ -73,12 +83,23 @@ pub fn serial_thread(
                         match possible_window {
                             Some(window) => 
                                 {window.add(measurements::Measurement
-                                    ::new(sample.time as f64, 
-                                          sample.read[chn]))},
+                                    ::new(sample.time as f64,
+                                          sample.to_unit()[chn]));
+                                /* let check_value = window.values.back();
+                                if check_value.is_some(){
+                                    println!("{}:{}", check_value.unwrap().x, check_value.unwrap().y)
+                                }*/
+                                 },
                             None => 
                                 {eprintln!("No window {}", chn);}
                             };
                         }
+
+                    serial_data
+                    .lock()
+                    .unwrap()
+                    .push(line.to_string().trim().to_owned());
+
                     }
                     //thread::sleep(Duration::from_millis(10));
                 }
@@ -87,113 +108,4 @@ pub fn serial_thread(
         }
     }
 
-                /*let _start_time = Instant::now();
-                println!("Connected to port: {}", serial_port);
-                let mut serial_buf: Vec<u8> = vec![0; 1000];
-                loop {
-                    {
-                        let mut b = send_serial.lock().unwrap();
-                        if *b {
-                            let mut msg = serial_write.lock().unwrap();
-                            match port.write(&*msg.as_bytes()) {
-                                Ok(_) => {
-                                    std::io::stdout().flush().unwrap();
-                                    msg.clear();
-                                }
-                                Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                                Err(e) => eprintln!("{:?}", e),
-                            }
-                            *b = false;
-                        }
-                    }
-                    match port.read(serial_buf.as_mut_slice()) {
-                        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                        Err(e) => eprintln!("{:?}", e),
-                        Ok(_t) => {
-                            let line: String = 
-                                match String::from_utf8(serial_buf.to_owned()) {
-                                    Ok(s) => {
-                                        //println!("{}", s);
-                                        //s.split("\r\n")
-                                        //    .collect::<Vec<&str>>()
-                                        //    [0]
-                                        //    .trim()
-                                            s.trim().to_string()},
-                                    Err(e) => {
-                                        println!("{:?}", e);
-                                        "CE,,,,,,,,,".to_string()
-                                    }
-                                };
-                        //let t = s.split("\r\n").collect::<Vec<&str>>();
-                        //for line in t {
-                            serial_data
-                            .lock()
-                            .unwrap()
-                            .push(line.to_string().trim().to_owned());
-                        
-
-                            let possible_sample = Sample::from_csv_line(&line);
-                            match possible_sample {
-                                None =>   {eprintln!("."); continue;},
-                                Some(_) => {}}
-                            let sample = possible_sample.unwrap();
-                            print!("{}", sample.to_csv_line());
-                            let new_time = sample.time as f64;
-                            let channels = [ "y0", "y1", "y2", "y3",
-                                                        "y4", "y5", "y6", "y7"];
-                            for chn in channels {
-                                let channel = chn;
-                                let mut sensory =
-                                    measurements
-                                    .lock()
-                                    .unwrap();
-                                let possible_window 
-                                    = sensory.get_mut(channel);
-                                match possible_window {
-                                    Some(window) => 
-                                        {window.add(measurements::Measurement::new(new_time, sample.read[0]))},
-                                    None => 
-                                        {eprintln!("No window {}", chn);}
-                                };
-                            }
-                            thread::sleep(Duration::from_millis(100));
-                        }
-                        
-
-                        /*measurements
-                            .lock()
-                            .unwrap()
-                            .get_mut(&*var)
-                            .unwrap()
-                            .add(measurements::Measurement::new(new_time, this_sample.read[2]));    
-                            
-                            
-                            let t = s.split("\r\n").collect::<Vec<&str>>();
-                            let s = t[0].to_string();
-                            let variables = variables.lock().unwrap().clone();
-                            serial_data
-                                .lock()
-                                .unwrap()
-                                .push(s.to_string().trim().to_owned());
-
-                            for var in variables {
-                                if s.contains(&*var) {
-                                    match helpers::parse_console(s.clone(), &*var) {
-                                        Some(y) => {
-                                            let new_time = start_time.elapsed().as_millis() as f64;
-                                            measurements
-                                                .lock()
-                                                .unwrap()
-                                                .get_mut(&*var)
-                                                .unwrap()
-                                                .add(measurements::Measurement::new(new_time, y));
-                                        }
-
-                                        None => continue,
-                                    };
-                                }
-                            }*/
-                        }
-                        
-                    }*/
-            
+ 
