@@ -11,12 +11,13 @@ use std::io::{BufReader, BufRead};
 use std::sync::*;
 use std::thread;
 use std::time::{Duration};
-
+use egui::emath::History;
 const baud_rate: u32 = 2_000_000;
 
 
 pub fn serial_thread(
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
+    history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
     _variables: Arc<Mutex<Vec<String>>>,

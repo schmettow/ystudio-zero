@@ -6,7 +6,9 @@ https://github.com/andy31415/rs-value-plotter
 
 use crate::gui;
 use crate::measurements::MeasurementWindow;
+use crate::ylab::yld::Sample;
 use eframe::egui;
+use egui::util::History;
 use std::collections::HashMap;
 use std::sync::*;
 
@@ -22,6 +24,7 @@ pub struct AppUserInput {
 pub struct MonitorApp {
     pub y_include: Arc<Mutex<f32>>,
     pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
+    pub history: Arc<Mutex<History<Sample>>>,
     pub variables: Arc<Mutex<Vec<String>>>,
     pub port: Arc<Mutex<String>>,
     pub available_ports: Arc<Mutex<Vec<String>>>,
@@ -37,9 +40,11 @@ impl MonitorApp {
         Self {
             y_include: Arc::new(Mutex::new(0.0)),
             measurements: Arc::new(Mutex::new(HashMap::new())),
-            //variables: Arc::new(Mutex::new(Vec::new())),
-            variables: Arc::new(Mutex::new(vec!( "y0".to_string(), "y1".to_string(), "y2".to_string(), "y3".to_string(),
-            "y4".to_string(), "y5".to_string(), "y6".to_string(), "y7".to_string()))),
+            // alternativ implementation for measurement windows
+            history: Arc::new(Mutex::new(History::new(0..200,100.0))),
+            variables: Arc::new(Mutex::new(Vec::new())),
+            //variables: Arc::new(Mutex::new(vec!( "y0".to_string(), "y1".to_string(), "y2".to_string(), "y3".to_string(),
+            //"y4".to_string(), "y5".to_string(), "y6".to_string(), "y7".to_string()))),
             port: Arc::new(Mutex::new(String::new())),
             available_ports: Arc::new(Mutex::new(Vec::new())),
             port2: String::new(),
