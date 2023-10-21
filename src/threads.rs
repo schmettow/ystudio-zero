@@ -10,7 +10,7 @@ use std::io::{self};
 use std::io::{BufReader, BufRead};
 use std::sync::*;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
 const baud_rate: u32 = 2_000_000;
 
@@ -24,7 +24,7 @@ pub fn serial_thread(
     send_serial: Arc<Mutex<bool>>,
     serial_write: Arc<Mutex<String>>,) -> ! {
     
-    /// Connecting to serial port
+    // Connecting to serial port
     loop {
         let serial_port = &serial_port.lock().unwrap().to_owned();
         // Look for serial ports

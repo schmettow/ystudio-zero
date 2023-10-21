@@ -8,7 +8,7 @@ use std::fs;
 
 extern crate csv;
 
-/// Shows off one example of each major type of widget.
+/// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub fn egui_init(app: MonitorApp) {
     let options = eframe::NativeOptions {
@@ -24,19 +24,24 @@ pub fn egui_init(app: MonitorApp) {
     );
 }
 
+/// updates the plotter
+/// 
 pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
     egui::CentralPanel::default().show(ctx, |ui| {
-        let mut plot = egui::plot::Plot::new("plotter");
+        let mut plot = egui_plot::Plot::new("plotter");
+        // reading the present y_include from the UI
+        // NOTE: Can be removed
         let y_include = app.y_include.lock().unwrap();
-        plot = plot.include_y(*y_include);
+        plot = plot
+                .include_y(*y_include);
 
-        let legend = egui::plot::Legend::default();
+        let legend = egui_plot::Legend::default();
         plot = plot.legend(legend);
 
         plot.show(ui, |plot_ui| {
             for (_key, window) in &*app.measurements.lock().unwrap() {
                 //println!("{}:{}", key);
-                plot_ui.line(egui::plot::Line::new(window.plot_values()));
+                plot_ui.line(egui_plot::Line::new(window.plot_values()));
             }
         });
     });
@@ -60,13 +65,16 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
 
         ui.label("Include Y-axis Range");
         ui.text_edit_singleline(&mut app.ui.y_include);
+        // check if the y_include field has been changed
         if app.ui.y_include != app.ui.y_include_prev {
             app.ui.y_include_prev = app.ui.y_include.to_owned();
-
+            // Extracting y-include as a number
             let a = helpers::parse_str_to_num(&app.ui.y_include);
             match a.parse::<f32>() {
                 Ok(n) => {
+                    // Locking the Mutex for use
                     let mut y_range = app.y_include.lock().unwrap();
+                    // changing the dereferenced value
                     *y_range = n;
                 }
                 Err(_) => (),

@@ -1,48 +1,72 @@
-/*
-Created by: Andrei Litvin
-https://github.com/andy31415/rs-value-plotter
-
-*/
-
+/// A vecdeque is a queue with two ends.
+/// It is used here to update the gliding window 
+/// of the plot.
 use std::collections::VecDeque;
 
-pub type Measurement = egui::plot::PlotPoint;
+/// Defining a dedicated type for one measurement point 
+pub type Measurement = egui_plot::PlotPoint;
 //pub type Measurement = Sample;
 
+/// The measurement window is a gliding range of measures
+/// that is used to keep the plot gliding (and not condense)
+/// 
+/// NOTES: 
+/// 
+/// + egui::util::History seems to implement the same functionality
+/// + The width is given as a bare number, where it should use std::time::Duration
+/// 
 pub struct MeasurementWindow {
     pub values: VecDeque<Measurement>,
     pub look_behind: usize,
 }
 
 impl MeasurementWindow {
+    /// Constructor
+    /// look_behind is the width of the time window
     pub fn new_with_look_behind(look_behind: usize) -> Self {
         Self {
             values: VecDeque::new(),
             look_behind,
         }
     }
-
+    /// Adding a measurement to the window
+    /// x is the time axis. When the new time stamp is earlier than the last,
+    /// the window is cleared.
     pub fn add(&mut self, measurement: Measurement) {
+        // Checking the time stamp
         if let Some(last) = self.values.back() {
             if measurement.x < last.x {
                 self.values.clear()
             }
         }
-
+        // Adding the new measure
         self.values.push_back(measurement);
-
-        let limit = self.values.back().unwrap().x - (self.look_behind as f64);
+        // Collecting the time stamp from the just added measure
+        let this_time = self.values.back().unwrap().x;
+        // Re-calculating the lower time limit of the window
+        let lower_time_limit = this_time - (self.look_behind as f64);
+        // Removing points that are too old
         while let Some(front) = self.values.front() {
-            if front.x >= limit {
+            if front.x >= lower_time_limit {
                 break;
             }
             self.values.pop_front();
         }
     }
 
-    pub fn plot_values(&self) -> egui::plot::PlotPoints {
-        egui::plot::PlotPoints::Owned(Vec::from_iter(self.values.iter().copied()))
+    pub fn oldest(&self) -> Option<f64> {
+        match self.values.len() {
+            0 => None,
+            _ => Some(self.values.back().unwrap().x)
+        }
     }
+
+    /// A function to hand over the PlotPoints to the UI
+    /// I can only guess, but it seems to create a deep copy.
+    pub fn plot_values(&self) -> egui_plot::PlotPoints {
+        egui_plot::PlotPoints::Owned(Vec::from_iter(self.values.iter().copied()))
+    }
+
 }
 
 #[cfg(test)]
