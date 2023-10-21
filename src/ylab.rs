@@ -50,10 +50,6 @@ pub mod yld{
                     Ok(v) => read[chn] = v,
                     Err(_) => read[chn] = 0
                 }
-                /* read[chn] = cols[chn + 2]
-                    .parse::<u16>()
-                    .or::<u16>(Ok(0))
-                    .unwrap()*/
             }
             Ok(Sample{dev: dev.unwrap(), 
                         time: time.unwrap() as i64, 
@@ -83,5 +79,4 @@ pub mod yld{
             Self {dev: 0, time: 0, read: [0, 0, 0, 0, 0, 0, 0, 0]}
         }
     }
-    }
-    
+}
