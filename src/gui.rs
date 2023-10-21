@@ -29,12 +29,14 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
         let mut plot = egui::plot::Plot::new("plotter");
         let y_include = app.y_include.lock().unwrap();
         plot = plot.include_y(*y_include);
+
         let legend = egui::plot::Legend::default();
         plot = plot.legend(legend);
 
         plot.show(ui, |plot_ui| {
-            for (_key, value) in &*app.measurements.lock().unwrap() {
-                plot_ui.line(egui::plot::Line::new(value.plot_values()));
+            for (_key, window) in &*app.measurements.lock().unwrap() {
+                //println!("{}:{}", key);
+                plot_ui.line(egui::plot::Line::new(window.plot_values()));
             }
         });
     });
@@ -55,31 +57,6 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
 
         ui.label("Variables");
         ui.text_edit_multiline(&mut app.ui.vars);
-        /*if app.ui.vars_prev != app.ui.vars {
-            app.ui.vars_prev = app.ui.vars.to_owned();
-            let mut v = app.variables.lock().unwrap();
-            *v = helpers::parse_vars(&app.ui.vars);
-
-            let mut m2 
-                = app.measurements.lock().unwrap();
-            // TODO: iterate through hashmap and delete keys/values no longer used
-
-            // iterate through variables and create new keys if needed
-            for i in v.to_owned().iter() {
-                let mut found = false;
-                for (key, _value) in &*m2 {
-                    if i == key {
-                        found = true;
-                    }
-                }
-                if !found {
-                    m2.insert(
-                        i.to_owned(),
-                        measurements::MeasurementWindow::new_with_look_behind(10000),
-                    );
-                }
-            }
-        }*/
 
         ui.label("Include Y-axis Range");
         ui.text_edit_singleline(&mut app.ui.y_include);
