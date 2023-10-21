@@ -20,10 +20,11 @@ pub fn serial_thread(
     history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
-    _variables: Arc<Mutex<Vec<String>>>,
+    //_variables: Arc<Mutex<Vec<String>>>,
     serial_data: Arc<Mutex<Vec<String>>>,
-    send_serial: Arc<Mutex<bool>>,
-    serial_write: Arc<Mutex<String>>,) -> ! {
+    //send_serial: Arc<Mutex<bool>>,
+    //serial_write: Arc<Mutex<String>>,
+    ) -> ! {
     
     // Connecting to serial port
     loop {

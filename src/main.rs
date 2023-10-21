@@ -35,10 +35,10 @@ fn main() {
     let port = app.port.clone();
     let available_ports = app.available_ports.clone();
     // variables don't do nothing at the moment
-    let variables = app.variables.clone();
+    //let variables = app.variables.clone();
     let serial_data = app.serial_data.clone();
-    let send_serial = app.send_serial.clone();
-    let serial_write = app.serial_write.clone();
+    //let send_serial = app.send_serial.clone();
+    //let serial_write = app.serial_write.clone();
 
     // starting the serial listener thread, 
     // consuming all mutexes
@@ -48,10 +48,10 @@ fn main() {
             history,
             port,
             available_ports,
-            variables,
+            //variables,
             serial_data,
-            send_serial,
-            serial_write,
+            //send_serial,
+            //serial_write,
         );
     });
 

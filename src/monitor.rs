@@ -25,14 +25,14 @@ pub struct MonitorApp {
     pub y_include: Arc<Mutex<f32>>,
     pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
     pub history: Arc<Mutex<History<Sample>>>,
-    pub variables: Arc<Mutex<Vec<String>>>,
+    //pub variables: Arc<Mutex<Vec<String>>>,
     pub port: Arc<Mutex<String>>,
     pub available_ports: Arc<Mutex<Vec<String>>>,
     pub ui: AppUserInput,
     pub port2: String,
     pub serial_data: Arc<Mutex<Vec<String>>>,
-    pub send_serial: Arc<Mutex<bool>>,
-    pub serial_write: Arc<Mutex<String>>,
+    //pub send_serial: Arc<Mutex<bool>>,
+    //pub serial_write: Arc<Mutex<String>>,
 }
 
 impl MonitorApp {
@@ -42,7 +42,7 @@ impl MonitorApp {
             measurements: Arc::new(Mutex::new(HashMap::new())),
             // alternativ implementation for measurement windows
             history: Arc::new(Mutex::new(History::new(0..200,100.0))),
-            variables: Arc::new(Mutex::new(Vec::new())),
+            //variables: Arc::new(Mutex::new(Vec::new())),
             //variables: Arc::new(Mutex::new(vec!( "y0".to_string(), "y1".to_string(), "y2".to_string(), "y3".to_string(),
             //"y4".to_string(), "y5".to_string(), "y6".to_string(), "y7".to_string()))),
             port: Arc::new(Mutex::new(String::new())),
@@ -57,8 +57,8 @@ impl MonitorApp {
                 log_name: String::new(),
             },
             serial_data: Arc::new(Mutex::new(Vec::new())),
-            send_serial: Arc::new(Mutex::new(false)),
-            serial_write: Arc::new(Mutex::new(String::new())),
+            //send_serial: Arc::new(Mutex::new(false)),
+            //serial_write: Arc::new(Mutex::new(String::new())),
         }
     }
 

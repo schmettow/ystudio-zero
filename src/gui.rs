@@ -21,7 +21,7 @@ pub fn egui_init(app: MonitorApp) {
         "Custom window frame", // unused title
         options,
         Box::new(|_cc| Box::new(app)),
-    );
+    ).unwrap();
 }
 
 /// updates the plotter
@@ -60,7 +60,7 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
                 }
             });
 
-        ui.label("Variables");
+       // ui.label("Variables");
         ui.text_edit_multiline(&mut app.ui.vars);
 
         ui.label("Include Y-axis Range");
@@ -120,14 +120,14 @@ pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             .collect::<Vec<String>>();
         ui.label(disp.join("\n"));
 
-        let mut user_command = app.serial_write.lock().unwrap();
-        ui.text_edit_singleline(&mut *user_command);
+        //let mut user_command = app.serial_write.lock().unwrap();
+        //ui.text_edit_singleline(&mut *user_command);
 
-        if ui.button("Send").clicked() {
+        /*if ui.button("Send").clicked() {
             user_command.push_str("\n\r");
             let mut b = app.send_serial.lock().unwrap();
             *b = true;
-        }
+        }*/
 
         ui.text_edit_singleline(&mut app.ui.log_name);
 
