@@ -5,7 +5,7 @@ use crate::monitor::MonitorApp;
 use eframe::egui;
 use std::collections::HashMap;
 use std::fs;
-use strum::{IntoEnumIterator};
+//use strum::IntoEnumIterator;
 
 extern crate csv;
 
@@ -30,12 +30,9 @@ pub fn egui_init(app: MonitorApp) {
 pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
-        // reading the present y_include from the UI
-        // NOTE: Can be removed
         let y_include = app.y_include.lock().unwrap();
         plot = plot
                 .include_y(*y_include);
-
         let legend = egui_plot::Legend::default();
         plot = plot.legend(legend);
 
@@ -60,7 +57,6 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
                 ui.radio_value(&mut *this_ylab, YLab::Go, "Go");
                 ui.radio_value(&mut *this_ylab, YLab::Mini, "Mini");});
                 ui.label(this_ylab.baud().to_string());
-        ui.label("Serial Ports");
         let mut serial_port = app.port.lock().unwrap();
         // drop down
         egui::ComboBox::from_label("Serial Port")
