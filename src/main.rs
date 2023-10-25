@@ -30,12 +30,14 @@ fn main() {
     let port = app.port.clone();
     let available_ports = app.available_ports.clone();
     let serial_data = app.serial_data.clone();
+    let this_ylab = app.ylab_version.clone();
 
     // starting the serial listener thread, 
     // consuming all mutexes
     thread::spawn(move || {
         threads::serial_thread(
             measurements,
+            this_ylab,
             history,
             port,
             available_ports,
