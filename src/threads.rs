@@ -1,20 +1,20 @@
 //use crate::helpers;
 use crate::measurements;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::yld::{Sample, self};
+use crate::ylab::{YLab, yld::{Sample, self}};
 
 use serialport;
 use std::collections::HashMap;
 use std::io::{BufReader, BufRead};
 use std::sync::*;
 // use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use egui::emath::History;
-const BAUD: u32 = 2_000_000;
 
 
 pub fn serial_thread(
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
+    ylab: Arc<Mutex<YLab>>,
     _history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
@@ -33,8 +33,10 @@ pub fn serial_thread(
                     available_ports.lock().unwrap().push(i.port_name);
                 }}
         }
+        let baud_rate = ylab.lock().unwrap().baud();
         let port 
-            = serialport::new(serial_port, BAUD)
+            = serialport::new(serial_port, 
+                baud_rate as u32)
                 .timeout(Duration::from_millis(1))
                 .flow_control(serialport::FlowControl::Software)
                 .open();
@@ -46,6 +48,8 @@ pub fn serial_thread(
             Ok(port) => {
                 //let std_start_time = Instant::now();
                 let mut lab_start_time = Duration::ZERO;
+                let mut std_start_time = Instant::now();
+
                 let mut got_first_line = false;
                 let reader = BufReader::new(port);
                 
@@ -66,7 +70,8 @@ pub fn serial_thread(
                         got_first_line = true;
                     }
 
-                    sample.time = (sample.time - lab_start_time.as_micros() as i64) / 1_000_000;
+                    let run_time = Instant::now() - std_start_time;
+                    sample.time = run_time.as_millis() as i64;
                     println!("{}", sample.to_csv_line());
                         
                     for chn in 0..8 {
