@@ -26,6 +26,7 @@ pub struct MonitorApp {
     pub connected: Arc<Mutex<bool>>,
     pub y_include: Arc<Mutex<f32>>,
     pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
+    // Alternative: history
     pub history: Arc<Mutex<History<Sample>>>,
     //pub variables: Arc<Mutex<Vec<String>>>,
     pub port: Arc<Mutex<String>>,
