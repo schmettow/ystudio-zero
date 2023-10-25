@@ -2,8 +2,41 @@
 /// 
 /// provides structures to hold YLab data streams 
 /// and methods to convert from and into 
+pub use std::fmt;
 
-pub mod yld{
+#[derive(PartialEq)]
+pub enum YLab {Pro, Go, Mini}
+
+impl YLab {
+    pub fn baud(&self) -> i32 {
+        match *self {
+            YLab::Pro => 2_000_000,
+            YLab::Go => 1_000_000,
+            YLab::Mini => 125_200,
+        }
+    }
+
+    pub fn _ticks_per_sec(&self) -> usize {
+        match *self {
+            YLab::Pro => 1_000_000,
+            YLab::Go => 1_000_000,
+            YLab::Mini => 100,
+        }
+    }
+}
+
+impl fmt::Display for YLab {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            YLab::Pro => write!(f, "Pro"),
+            YLab::Go => write!(f, "Go"),
+            YLab::Mini => write!(f, "Mini"),
+        }
+    }
+}
+
+
+pub mod yld {
     /// Sample of YLab data
     /// 
     /// YLabs keeps data with a time stamp, 
