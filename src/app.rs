@@ -1,18 +1,13 @@
-/*
-Created by: Andrei Litvin
-https://github.com/andy31415/rs-value-plotter
-
-*/
-
 use crate::gui;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::{YLab, yld::Sample};
 use eframe::egui;
 use egui::util::History;
 use std::collections::HashMap;
 use std::sync::*;
 
-pub struct AppUserInput {
+pub use crate::ylab::{YLab, yld::Sample};
+
+pub struct UserInput {
     pub vars: String,
     pub y_include: String,
     pub y_include_prev: String,
@@ -21,7 +16,8 @@ pub struct AppUserInput {
     pub log_name: String,
 }
 
-pub struct MonitorApp {
+pub struct Monitor {
+    //pub ylab_state: Arc<Mutex<YLabState>>,
     pub ylab_version: Arc<Mutex<YLab>>,
     pub connected: Arc<Mutex<bool>>,
     pub y_include: Arc<Mutex<f32>>,
@@ -31,14 +27,15 @@ pub struct MonitorApp {
     //pub variables: Arc<Mutex<Vec<String>>>,
     pub port: Arc<Mutex<String>>,
     pub available_ports: Arc<Mutex<Vec<String>>>,
-    pub ui: AppUserInput,
+    pub ui: UserInput,
     pub port2: String,
     pub serial_data: Arc<Mutex<Vec<String>>>,
 }
 
-impl MonitorApp {
+impl Monitor {
     pub fn new() -> Self {
         Self {
+            //ylab_state: Arc::new(Mutex::new(YLabState::Disconnected)),
             ylab_version: Arc::new(Mutex::new(YLab::Mini)),
             connected: Arc::new(Mutex::new(false)),
             y_include: Arc::new(Mutex::new(0.0)),
@@ -48,7 +45,7 @@ impl MonitorApp {
             port: Arc::new(Mutex::new(String::new())),
             available_ports: Arc::new(Mutex::new(Vec::new())),
             port2: String::new(),
-            ui: AppUserInput {
+            ui: UserInput {
                 vars: String::new(),
                 vars_prev: "Y0".into(),
                 port: String::new(),
@@ -63,7 +60,7 @@ impl MonitorApp {
 
 }
 
-impl eframe::App for MonitorApp {
+impl eframe::App for Monitor {
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
     #[cfg(feature = "persistence")]

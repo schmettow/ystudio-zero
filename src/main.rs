@@ -1,14 +1,15 @@
 mod gui;
 mod measurements;
-mod monitor;
+mod app;
 mod threads;
 mod ylab;
 
 use std::thread;
+const N_HISTORY: usize = 1000;
 
 fn main() {
     // initialize the app
-    let app = monitor::MonitorApp::new();
+    let app = app::Monitor::new();
     // make a copy of the measurements hash map
     let measurements = app.measurements.clone();
 
@@ -19,7 +20,7 @@ fn main() {
         .lock()
         .unwrap()
         .insert(chan_id.into(),
-            measurements::MeasurementWindow::new_with_look_behind(1000));
+            measurements::MeasurementWindow::new_with_look_behind(N_HISTORY));
         println!("Creating window for {}", chan_id);
     }
 

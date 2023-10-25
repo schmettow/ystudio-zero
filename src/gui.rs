@@ -1,7 +1,7 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 use crate::ylab::YLab;
 use crate::{measurements, ylab};
-use crate::monitor::MonitorApp;
+use crate::app::Monitor;
 use eframe::egui;
 use std::collections::HashMap;
 use std::fs;
@@ -11,7 +11,7 @@ extern crate csv;
 
 /// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub fn egui_init(app: MonitorApp) {
+pub fn egui_init(app: Monitor) {
     let options = eframe::NativeOptions {
         transparent: true,
         initial_window_size: Some(egui::vec2(1000.0, 800.0)),
@@ -27,7 +27,7 @@ pub fn egui_init(app: MonitorApp) {
 
 /// updates the plotter
 /// 
-pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
+pub fn update_central_panel(ctx: &egui::Context, app: &mut Monitor) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         let y_include = app.y_include.lock().unwrap();
@@ -45,7 +45,7 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
     });
 }
 
-pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
+pub fn update_right_panel(ctx: &egui::Context, app: &mut Monitor) {
     egui::SidePanel::right("left_right_panel")
         .show(ctx, 
         |ui| {
@@ -74,7 +74,7 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
             //let this_ylab = app.ylab_version.lock().unwrap();
 
 
-pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
+pub fn update_left_panel(ctx: &egui::Context, app: &mut Monitor) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
             let disp = app.serial_data.lock().unwrap().to_owned();
