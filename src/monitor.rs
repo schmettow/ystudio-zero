@@ -6,7 +6,7 @@ https://github.com/andy31415/rs-value-plotter
 
 use crate::gui;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::yld::Sample;
+use crate::ylab::{YLab, yld::Sample};
 use eframe::egui;
 use egui::util::History;
 use std::collections::HashMap;
@@ -22,6 +22,7 @@ pub struct AppUserInput {
 }
 
 pub struct MonitorApp {
+    pub ylab_version: Arc<Mutex<YLab>>,
     pub y_include: Arc<Mutex<f32>>,
     pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
     pub history: Arc<Mutex<History<Sample>>>,
@@ -31,13 +32,12 @@ pub struct MonitorApp {
     pub ui: AppUserInput,
     pub port2: String,
     pub serial_data: Arc<Mutex<Vec<String>>>,
-    //pub send_serial: Arc<Mutex<bool>>,
-    //pub serial_write: Arc<Mutex<String>>,
 }
 
 impl MonitorApp {
     pub fn new() -> Self {
         Self {
+            ylab_version: Arc::new(Mutex::new(YLab::Go)),
             y_include: Arc::new(Mutex::new(0.0)),
             measurements: Arc::new(Mutex::new(HashMap::new())),
             // alternativ implementation for measurement windows
