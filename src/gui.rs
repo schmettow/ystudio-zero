@@ -1,9 +1,11 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
-use crate::measurements;
+use crate::ylab::YLab;
+use crate::{measurements, ylab};
 use crate::monitor::MonitorApp;
 use eframe::egui;
 use std::collections::HashMap;
 use std::fs;
+use strum::{IntoEnumIterator};
 
 extern crate csv;
 
@@ -47,29 +49,44 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut MonitorApp) {
 }
 
 pub fn update_right_panel(ctx: &egui::Context, app: &mut MonitorApp) {
-    egui::SidePanel::right("left_right_panel").show(ctx, |ui| {
+    egui::SidePanel::right("left_right_panel")
+        .show(ctx, 
+        |ui| {
+        let mut this_ylab = app.ylab_version.lock().unwrap();
+        egui::ComboBox::from_label("YLab version")
+            .selected_text(format!("{}", this_ylab))
+            .show_ui(ui, |ui| {
+                ui.radio_value(&mut *this_ylab, YLab::Pro, "Pro");
+                ui.radio_value(&mut *this_ylab, YLab::Go, "Go");
+                ui.radio_value(&mut *this_ylab, YLab::Mini, "Mini");});
+                ui.label(this_ylab.baud().to_string());
         ui.label("Serial Ports");
         let mut serial_port = app.port.lock().unwrap();
         // drop down
-        egui::ComboBox::from_label("")
+        egui::ComboBox::from_label("Serial Port")
             .selected_text(format!("{}", serial_port.to_owned()))
             .show_ui(ui, |ui| {
                 for i in app.available_ports.lock().unwrap().iter() {
-                    ui.selectable_value(&mut *serial_port, i.to_string(), i.to_string());
+                    ui.selectable_value(&mut *serial_port, 
+                                        i.to_string(), 
+                                        i.to_string());
                 }
             });
-    });
+        });
+
 }
+            //let this_ylab = app.ylab_version.lock().unwrap();
+
 
 pub fn update_left_panel(ctx: &egui::Context, app: &mut MonitorApp) {
-    egui::SidePanel::left("left_side_panel").show(ctx, |ui| {
-        let disp = app.serial_data.lock().unwrap().to_owned();
-        let disp = disp
-            .into_iter()
-            .rev()
-            .take(50)
-            .rev()
-            .collect::<Vec<String>>();
-        ui.label(disp.join("\n"));
-    });
-}
+    egui::SidePanel::left("left_side_panel")
+        .show(ctx, |ui| {
+            let disp = app.serial_data.lock().unwrap().to_owned();
+            let disp = disp
+                .into_iter()
+                .rev()
+                .take(50)
+                .rev()
+                .collect::<Vec<String>>();
+        ui.label(disp.join("\n"))});
+    }
