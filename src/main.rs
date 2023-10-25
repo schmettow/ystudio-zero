@@ -31,6 +31,7 @@ fn main() {
     let available_ports = app.available_ports.clone();
     let serial_data = app.serial_data.clone();
     let this_ylab = app.ylab_version.clone();
+    let connected = app.connected.clone();
 
     // starting the serial listener thread, 
     // consuming all mutexes
@@ -38,6 +39,7 @@ fn main() {
         threads::serial_thread(
             measurements,
             this_ylab,
+            connected,  
             history,
             port,
             available_ports,

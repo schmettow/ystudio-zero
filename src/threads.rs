@@ -15,6 +15,7 @@ use egui::emath::History;
 pub fn serial_thread(
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
     ylab: Arc<Mutex<YLab>>,
+    connected: Arc<Mutex<bool>>,
     _history: Arc<Mutex<History<Sample>>>,
     serial_port: Arc<Mutex<String>>,
     available_ports: Arc<Mutex<Vec<String>>>,
@@ -47,8 +48,9 @@ pub fn serial_thread(
             },
             Ok(port) => {
                 //let std_start_time = Instant::now();
-                let mut lab_start_time = Duration::ZERO;
-                let mut std_start_time = Instant::now();
+                //let mut lab_start_time = Duration::ZERO;
+                *connected.lock().unwrap() = true;
+                let std_start_time = Instant::now();
 
                 let mut got_first_line = false;
                 let reader = BufReader::new(port);
@@ -65,7 +67,7 @@ pub fn serial_thread(
                     let mut sample = possible_sample.unwrap();
                     // check if this is the first line
                     if !got_first_line {
-                        lab_start_time = Duration::from_micros(sample.time as u64);
+                        //lab_start_time = Duration::from_micros(sample.time as u64);
                         //println!("{}", lab_start_time.as_micros());
                         got_first_line = true;
                     }

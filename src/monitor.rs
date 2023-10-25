@@ -23,6 +23,7 @@ pub struct AppUserInput {
 
 pub struct MonitorApp {
     pub ylab_version: Arc<Mutex<YLab>>,
+    pub connected: Arc<Mutex<bool>>,
     pub y_include: Arc<Mutex<f32>>,
     pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
     pub history: Arc<Mutex<History<Sample>>>,
@@ -37,7 +38,8 @@ pub struct MonitorApp {
 impl MonitorApp {
     pub fn new() -> Self {
         Self {
-            ylab_version: Arc::new(Mutex::new(YLab::Go)),
+            ylab_version: Arc::new(Mutex::new(YLab::Mini)),
+            connected: Arc::new(Mutex::new(false)),
             y_include: Arc::new(Mutex::new(0.0)),
             measurements: Arc::new(Mutex::new(HashMap::new())),
             // alternativ implementation for measurement windows
