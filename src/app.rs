@@ -1,6 +1,5 @@
 use crate::gui;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::{YLab, YLabState, yld::Sample};
 use eframe::egui;
 use egui::util::History;
 use std::collections::HashMap;
@@ -19,8 +18,6 @@ pub struct UserInput {
 
 pub struct Monitor {
     //pub ylab_state: Arc<Mutex<YLabState>>,
-pub struct Monitor {
-    pub ylab_state: Arc<Mutex<YLabState>>,
     pub ylab_version: Arc<Mutex<YLab>>,
     pub connected: Arc<Mutex<bool>>,
     pub y_include: Arc<Mutex<f32>>,
@@ -31,12 +28,10 @@ pub struct Monitor {
     pub port: Arc<Mutex<String>>,
     pub available_ports: Arc<Mutex<Vec<String>>>,
     pub ui: UserInput,
-    pub ui: UserInput,
     pub port2: String,
     pub serial_data: Arc<Mutex<Vec<String>>>,
 }
 
-impl Monitor {
 impl Monitor {
     pub fn new() -> Self {
         Self {
@@ -50,7 +45,6 @@ impl Monitor {
             port: Arc::new(Mutex::new(String::new())),
             available_ports: Arc::new(Mutex::new(Vec::new())),
             port2: String::new(),
-            ui: UserInput {
             ui: UserInput {
                 vars: String::new(),
                 vars_prev: "Y0".into(),
@@ -66,7 +60,6 @@ impl Monitor {
 
 }
 
-impl eframe::App for Monitor {
 impl eframe::App for Monitor {
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
