@@ -3,6 +3,8 @@
 /// provides structures to hold YLab data streams 
 /// and methods to convert from and into 
 pub use std::fmt;
+use std::io::BufReader;
+pub use std::time::Instant;
 
 #[derive(PartialEq)]
 pub enum YLab {Pro, Go, Mini}
@@ -34,6 +36,16 @@ impl fmt::Display for YLab {
         }
     }
 }
+
+pub enum YLabState {
+    Disconnected,
+    Available {ports: Vec<String>},
+    ConnRequest {version: YLab, port: String},
+    Connected {version: YLab, port: Box<dyn serialport::SerialPort>},
+    Reading {start_time: Instant, version: YLab, reader: BufReader<Box<dyn serialport::SerialPort>>},
+}
+
+
 
 
 pub mod yld {
