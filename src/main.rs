@@ -4,14 +4,16 @@ mod app;
 mod threads;
 mod ylab;
 
-use std::thread;
+use egui::util::History;
+use ::mpsc::Sender;
+use std::{thread, sync::*};
 const N_HISTORY: usize = 1000;
 
 fn main() {
     // initialize the app
-    let app = app::Monitor::new();
-    // make a copy of the measurements hash map
-    let measurements = app.measurements.clone();
+    let ylab = ylab::YLabState::Disconnected {ports: None};
+    let ylab_hist = Arc::new(Mutex::new(History::new(0..200,100.0)));
+    let (ylab_cmd, ylab_listen) = mpsc::channel();
 
     // Creating sliding windows for 8 channels
     for chan_id in ylab::yld::CHAN_IDS {
@@ -25,28 +27,18 @@ fn main() {
     }
 
     // Alternative implementation for sliding windows using egui History
-    let history = app.history.clone();
-
+    
     // this is all needed by the serial thread
-    let port = app.port.clone();
-    let available_ports = app.available_ports.clone();
-    let serial_data = app.serial_data.clone();
-    //let this_ylab = app.ylab_version.clone();
-    //let connected = app.connected.clone();
     let ylab_state = app.ylab_state.clone();
+    let ylab_data = app.history.clone();
 
     // starting the serial listener thread, 
     // consuming all mutexes
     thread::spawn(move || {
         threads::serial_thread(
             ylab_state,
-            measurements,
-            //this_ylab,
-            //connected,  
-            history,
-            //port,
-            //available_ports,
-            //serial_data,
+            ylab_data,
+            ylab_listen
         );
     });
 
