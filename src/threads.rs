@@ -1,77 +1,46 @@
 //use crate::helpers;
 use crate::measurements;
 use crate::measurements::MeasurementWindow;
-use crate::ylab::{YLabState as State, yld::{Sample, self}};
-//use crate::app::self;
+use crate::ylab::{YLab, yld::{Sample, self}};
 
 use serialport;
 use std::collections::HashMap;
 use std::io::{BufReader, BufRead};
 use std::sync::*;
-use std::thread;
+// use std::thread;
 use std::time::{Duration, Instant};
 use egui::emath::History;
 
 
 pub fn serial_thread(
-    ylab: Arc<Mutex<State>>,
     measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
-    //connected: Arc<Mutex<bool>>,
+    ylab: Arc<Mutex<YLab>>,
+    connected: Arc<Mutex<bool>>,
     _history: Arc<Mutex<History<Sample>>>,
-    //serial_port: Arc<Mutex<String>>,
-    //available_ports: Arc<Mutex<Vec<String>>>,
-    //serial_data: Arc<Mutex<Vec<String>>>,
+    serial_port: Arc<Mutex<String>>,
+    available_ports: Arc<Mutex<Vec<String>>>,
+    serial_data: Arc<Mutex<Vec<String>>>,
     ) -> ! {
     
     // Connecting to serial port
-    let ylab_state = ylab.lock().unwrap();
     loop {
-        match *ylab_state {
-            State::Disconnected => {
-                let ports = serialport::available_ports();
-                match ports {
-                    Err(_) => {thread::sleep(Duration::from_millis(500))},
-                    Ok(n) => {
-                        let port_names 
-                            = n.iter().map(|p| p.port_name.clone()).collect::<Vec<String>>();
-                        *ylab_state = State::Available {ports: port_names}
-                        }
-                    }
-            },
-            State::Available {ports} => {
-                // wait for user input
-            },
-            State::ConnRequest {version, port} => {
-                let poss_port: Result<Box<dyn serialport::SerialPort>, serialport::Error> 
-                    = serialport::new(port.clone(),
-                        version.baud() as u32)
-                        .timeout(Duration::from_millis(1))
-                        .flow_control(serialport::FlowControl::Software)
-                        .open();
-                match poss_port {
-                    Err(_) => {thread::sleep(Duration::from_millis(10))},
-                    Ok(port) => {
-                        *ylab_state = State::Connected {version: version, port: port}
-                        }
-                    }
-                },
-            State::Connected {version, port} 
-                => {
-                let std_start_time: Instant = Instant::now();
-                let reader: BufReader<_> = BufReader::new(port);
-                *ylab_state = State::Reading {version: version, start_time: std_start_time}
-            },
-            State::Reading {version, start_time, reader} 
-                => {let mut got_first_line: bool = false;} 
-                //println!("Sending");
-                //thread::sleep(Duration::from_millis(100));
-            },
-        }
-        //let serial_port = &serial_port.lock().unwrap().to_owned();
+        let serial_port = &serial_port.lock().unwrap().to_owned();
         // Look for serial ports
+        match serialport::available_ports() {
+            Err(e) => println!("{}", e),
+            Ok(n) => {
+                available_ports.lock().unwrap().clear();
+                for i in n {
+                    available_ports.lock().unwrap().push(i.port_name);
+                }}
         }
         let baud_rate = ylab.lock().unwrap().baud();
-        
+        let port 
+            = serialport::new(serial_port, 
+                baud_rate as u32)
+                .timeout(Duration::from_millis(1))
+                .flow_control(serialport::FlowControl::Software)
+                .open();
         match port {
             Err(_e) => {
                 //eprintln!("Failed to open {}", _e);
@@ -81,6 +50,10 @@ pub fn serial_thread(
                 //let std_start_time = Instant::now();
                 //let mut lab_start_time = Duration::ZERO;
                 *connected.lock().unwrap() = true;
+                let std_start_time = Instant::now();
+
+                let mut got_first_line = false;
+                let reader = BufReader::new(port);
                 
                 // Reading serial input by line
                 for line in reader.lines() {
@@ -116,6 +89,10 @@ pub fn serial_thread(
                                 {window.add(measurements::Measurement
                                     ::new(sample.time as f64,
                                           sample.to_unit()[chn]));
+                                /* let check_value = window.values.back();
+                                if check_value.is_some(){
+                                    println!("{}:{}", check_value.unwrap().x, check_value.unwrap().y)
+                                }*/
                                  },
                             None => 
                                 {eprintln!("No window {}", chn);}
@@ -133,5 +110,6 @@ pub fn serial_thread(
             }
                             
         }
+    }
 
  
