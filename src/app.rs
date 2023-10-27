@@ -17,14 +17,6 @@ pub struct UserInput {
 }
 
 pub struct Monitor {
-    pub ylab_state: Arc<Mutex<YLabState>>,
-    pub ylab_version: Arc<Mutex<YLab>>,
-    pub connected: Arc<Mutex<bool>>,
-    pub y_include: Arc<Mutex<f32>>,
-    pub measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
-    // Alternative: history
-    pub history: Arc<Mutex<History<Sample>>>,
-    //pub variables: Arc<Mutex<Vec<String>>>,
     pub port: Arc<Mutex<String>>,
     pub available_ports: Arc<Mutex<Vec<String>>>,
     pub ui: UserInput,
@@ -35,16 +27,16 @@ pub struct Monitor {
 impl Monitor {
     pub fn new() -> Self {
         Monitor {
-            ylab_state: Arc::new(Mutex::new(YLabState::Disconnected {ports: None})),
-            ylab_version: Arc::new(Mutex::new(YLab::Mini)),
-            connected: Arc::new(Mutex::new(false)),
-            y_include: Arc::new(Mutex::new(0.0)),
+            //ylab_state: Arc::new(Mutex::new(YLabState::Disconnected {ports: None})),
+            //ylab_version: Arc::new(Mutex::new(YLab::Mini)),
+            //connected: Arc::new(Mutex::new(false)),
+            //y_include: Arc::new(Mutex::new(0.0)),
             measurements: Arc::new(Mutex::new(HashMap::new())),
             // alternativ implementation for measurement windows
             history: Arc::new(Mutex::new(History::new(0..200,100.0))),
-            port: Arc::new(Mutex::new(String::new())),
-            available_ports: Arc::new(Mutex::new(Vec::new())),
-            port2: String::new(),
+            //port: Arc::new(Mutex::new(String::new())),
+            //available_ports: Arc::new(Mutex::new(Vec::new())),
+            //port2: String::new(),
             ui: UserInput {
                 vars: String::new(),
                 vars_prev: "Y0".into(),
