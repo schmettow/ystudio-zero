@@ -8,32 +8,32 @@ pub use std::time::Instant;
 use serialport::SerialPort;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum YLab {Pro, Go, Mini}
+pub enum YLabVersion {Pro, Go, Mini}
 
-impl YLab {
+impl YLabVersion {
     pub fn baud(&self) -> i32 {
         match *self {
-            YLab::Pro => 2_000_000,
-            YLab::Go => 1_000_000,
-            YLab::Mini => 125_200,
+            YLabVersion::Pro => 2_000_000,
+            YLabVersion::Go => 1_000_000,
+            YLabVersion::Mini => 125_200,
         }
     }
 
     pub fn _ticks_per_sec(&self) -> usize {
         match *self {
-            YLab::Pro => 1_000_000,
-            YLab::Go => 1_000_000,
-            YLab::Mini => 100,
+            YLabVersion::Pro => 1_000_000,
+            YLabVersion::Go => 1_000_000,
+            YLabVersion::Mini => 100,
         }
     }
 }
 
-impl fmt::Display for YLab {
+impl fmt::Display for YLabVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            YLab::Pro => write!(f, "Pro"),
-            YLab::Go => write!(f, "Go"),
-            YLab::Mini => write!(f, "Mini"),
+            YLabVersion::Pro => write!(f, "Pro"),
+            YLabVersion::Go => write!(f, "Go"),
+            YLabVersion::Mini => write!(f, "Mini"),
         }
     }
 }
@@ -58,13 +58,17 @@ pub type PossReader = Option<Box<dyn std::io::BufRead>>;
 /// Similar to how it is done in YLab-Edge.
 
 #[derive(PartialEq, Debug, Clone)]
+
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
-    Connect {version: YLab, port: String},
-    Connected {start_time: Instant, version: YLab, port: String},//port: Box<dyn serialport::SerialPort>},
-    Read {start_time: Instant, version: YLab, port: String},     //reader: BufReader<Box<dyn serialport::SerialPort>>},
-    Reading {start_time: Instant, version: YLab, port: String},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
-    Disconnect{},//reader: BufReader<Box<dyn serialport::SerialPort>>},
+    Connected {start_time: Instant, version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
+    Reading {start_time: Instant, version: YLabVersion, port: String},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
+}
+
+pub enum YLabCmd {
+    Disconnect,
+    Connect {version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
+    Read {},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
 }
 
 /// YLab data stream (YLD)
