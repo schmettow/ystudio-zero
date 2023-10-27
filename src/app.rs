@@ -5,7 +5,7 @@ use egui::util::History;
 use std::collections::HashMap;
 use std::sync::*;
 
-pub use crate::ylab::{YLab, yld::Sample};
+pub use crate::ylab::{YLab, yld::Sample, YLabState};
 
 pub struct UserInput {
     pub vars: String,
@@ -17,7 +17,7 @@ pub struct UserInput {
 }
 
 pub struct Monitor {
-    //pub ylab_state: Arc<Mutex<YLabState>>,
+    pub ylab_state: Arc<Mutex<YLabState>>,
     pub ylab_version: Arc<Mutex<YLab>>,
     pub connected: Arc<Mutex<bool>>,
     pub y_include: Arc<Mutex<f32>>,
@@ -34,8 +34,8 @@ pub struct Monitor {
 
 impl Monitor {
     pub fn new() -> Self {
-        Self {
-            //ylab_state: Arc::new(Mutex::new(YLabState::Disconnected)),
+        Monitor {
+            ylab_state: Arc::new(Mutex::new(YLabState::Disconnected {ports: None})),
             ylab_version: Arc::new(Mutex::new(YLab::Mini)),
             connected: Arc::new(Mutex::new(false)),
             y_include: Arc::new(Mutex::new(0.0)),

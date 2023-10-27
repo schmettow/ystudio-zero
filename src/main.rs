@@ -31,20 +31,22 @@ fn main() {
     let port = app.port.clone();
     let available_ports = app.available_ports.clone();
     let serial_data = app.serial_data.clone();
-    let this_ylab = app.ylab_version.clone();
-    let connected = app.connected.clone();
+    //let this_ylab = app.ylab_version.clone();
+    //let connected = app.connected.clone();
+    let ylab_state = app.ylab_state.clone();
 
     // starting the serial listener thread, 
     // consuming all mutexes
     thread::spawn(move || {
         threads::serial_thread(
+            ylab_state,
             measurements,
-            this_ylab,
-            connected,  
+            //this_ylab,
+            //connected,  
             history,
-            port,
-            available_ports,
-            serial_data,
+            //port,
+            //available_ports,
+            //serial_data,
         );
     });
 

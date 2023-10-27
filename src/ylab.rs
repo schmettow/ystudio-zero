@@ -3,8 +3,11 @@
 /// provides structures to hold YLab data streams 
 /// and methods to convert from and into 
 pub use std::fmt;
+pub use std::time::Instant;
 
-#[derive(PartialEq)]
+use serialport::SerialPort;
+
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum YLab {Pro, Go, Mini}
 
 impl YLab {
@@ -36,6 +39,36 @@ impl fmt::Display for YLab {
 }
 
 
+
+/// Optional list of serial port names
+pub type AvailablePorts = Option<Vec<String>>;
+/// Possible serial port
+pub type PossPort = Option<Box<dyn SerialPort>>;
+/// Possible serial port
+pub type PossReader = Option<Box<dyn std::io::BufRead>>;
+
+
+/// YLab State
+/// 
+/// provides the states of YLab devices
+/// Connect and Read actually are for sending commands to the YLab. 
+/// That's the flexibility of a mutex, it is bidirectional.
+/// A cleaner way would be to use separate types for 
+/// commands and states, use signals for commands and channels for data.
+/// Similar to how it is done in YLab-Edge.
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum YLabState {
+    Disconnected {ports: AvailablePorts},
+    Connect {version: YLab, port: String},
+    Connected {start_time: Instant, version: YLab, port: String},//port: Box<dyn serialport::SerialPort>},
+    Read {start_time: Instant, version: YLab, port: String},     //reader: BufReader<Box<dyn serialport::SerialPort>>},
+    Reading {start_time: Instant, version: YLab, port: String},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
+    Disconnect{},//reader: BufReader<Box<dyn serialport::SerialPort>>},
+}
+
+/// YLab data stream (YLD)
+
 pub mod yld {
     /// Sample of YLab data
     /// 
@@ -46,6 +79,11 @@ pub mod yld {
     pub static CHAN_IDS: [&str; 8] = [ "y0", "y1", "y2", "y3",
     "y4", "y5", "y6", "y7"];
 
+    /// Sample of YLab data
+    /// 
+    /// YLabs keeps data with a time stamp,
+    /// a device identifier and a vector of eight readings.
+    ///
     #[derive(Copy, Clone, Debug)]
     pub struct Sample {
         pub dev: i8,
@@ -53,15 +91,30 @@ pub mod yld {
         pub read: [u16;8],
     }
     
+    /// Error types for parsing CSV lines
     #[derive(Debug)]
     pub enum ParseError {
         Len(usize), 
         Dev(String), 
         Time(String)}
     
+    /// Result type for parsing CSV lines
     pub type FailableSample = Result<Sample, ParseError>;
-
+    
+    /// Methods for YLab data samples
     impl Sample {
+        /// Create a new sample from a CSV line as String
+        /// 
+        /// The CSV line is expected to have 10 columns:
+        /// time, device number, 8 readings.
+        ///
+        /// The time stamp is expected to be an integer, better would be Duration.
+        /// Not Instant, because you cannot create Instant from numbers. 
+        /// Also, the timestamp sent by the YLab is usually since startup of the YLab.
+        /// Duration *since startup* is slightly stronger than Duration. 
+        /// It's like every run has their own epoch.
+        /// 
+        /// 
         pub fn from_csv_line(line: &String) -> FailableSample {
             // splitting
             let cols: Vec<&str> = line.split(",").collect();
