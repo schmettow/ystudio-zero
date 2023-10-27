@@ -1,7 +1,7 @@
 use crate::measurements;
 use crate::measurements::MeasurementWindow;
 use crate::ylab::{PossPort, PossReader, AvailablePorts};
-use crate::ylab::{YLabState as State, yld::{Sample, self}};
+use crate::ylab::{YLabState as State, yld::{Sample, self}, YLabCmd};
 
 use serialport;
 use std::collections::HashMap;
@@ -14,8 +14,8 @@ use egui::emath::History;
 
 pub fn serial_thread(
     ylab: Arc<Mutex<State>>,
-    measurements: Arc<Mutex<HashMap<String, MeasurementWindow>>>,
-    _history: Arc<Mutex<History<Sample>>>,
+    ylab_data: Arc<Mutex<History<Sample>>>,
+    ylab_listen: mpsc::Receiver<YLabCmd>,
     ) -> ! {
     
     let mut poss_port: PossPort;
@@ -23,46 +23,49 @@ pub fn serial_thread(
     let mut reader: BufReader<Box<dyn serialport::SerialPort>>;
     
     let mut ylab_state = ylab.lock().unwrap();
-    let this_state = ylab_state.clone();
     loop {
+        let this_state = ylab_state.clone();
+        let this_cmd = ylab_listen.try_recv();
         match this_state {
-            State::Disconnected {ports: _} => {
-                let ports = serialport::available_ports();
-                match ports {
-                    Err(_) => { // trying again in 500ms
-                        thread::sleep(Duration::from_millis(500));
-                        *ylab_state = State::Disconnected{ports: AvailablePorts::None}},
-                    Ok(found) => {
-                        let port_names 
-                            = found.iter().map(|p| p.port_name.clone())
-                                .collect::<Vec<String>>();
-                        // State is updating itself by collecting available ports
-                        *ylab_state = State::Disconnected{ports: Some(port_names)}}
-                    }},
-            // wait for user input
-            State::Connect {version, ref port} 
-                => {poss_port = 
-                        serialport::new(port.clone(),
-                            version.baud() as u32)
-                            .timeout(Duration::from_millis(1))
-                            .flow_control(serialport::FlowControl::Software)
-                            .open()
-                            .ok(); // ok() turns a Result into an Option
-                    match poss_port {
-                        None => {thread::sleep(Duration::from_millis(10))},
-                        Some(_) 
-                            => {*ylab_state = State::Connected {start_time: Instant::now(),
-                                                                version: version, 
-                                                                port: port.clone()}}
+            State::Disconnected {ports: _}
+                => {let ports = serialport::available_ports();
+                    match ports {
+                        Err(_) => { // trying again in 500ms
+                            thread::sleep(Duration::from_millis(500));
+                            *ylab_state = State::Disconnected{ports: AvailablePorts::None}},
+                        Ok(found) => {
+                            let port_names 
+                                = found.iter().map(|p| p.port_name.clone())
+                                    .collect::<Vec<String>>();
+                            // State is updating itself by collecting available ports
+                            *ylab_state = State::Disconnected{ports: Some(port_names)}};
+                            match this_cmd {
+                                _ => {},
+                                Ok(YLabCmd::Connect { version, port })
+                                => {poss_port = 
+                                    serialport::new(port.clone(),
+                                        version.baud() as u32)
+                                        .timeout(Duration::from_millis(1))
+                                        .flow_control(serialport::FlowControl::Software)
+                                        .open()
+                                        .ok(); // ok() turns a Result into an Option
+                                    match poss_port {
+                                        None => {thread::sleep(Duration::from_millis(10))},
+                                        Some(_) 
+                                            => {*ylab_state = State::Connected {start_time: Instant::now(),
+                                                                                version: version, 
+                                                                                port: port.clone()}}
+                                    }
+                                },
+                            }
                         }
                     },
-            // automatic transition from connectd to prepare reading
             State::Connected {  start_time, version, ref port} 
-                => {*ylab_state = State::Read {version: version, 
-                                               start_time: start_time, 
-                                               port: port.to_string()}},
-            State::Read {  start_time:_, version:_, port:_} 
-                => {reader = BufReader::new(poss_port.unwrap());},
+                => {match this_cmd {
+                        _ => {},
+                        Ok(YLabCmd::Read {  }) 
+                            => {reader = BufReader::new(poss_port.unwrap());
+                                *ylab_state = State::Reading {version: version, start_time: start_time, port: port.to_string()};},
             State::Reading {version, start_time, port:_} 
                 => {let mut got_first_line: bool = false;
                     // INSERT: Opening the global buffer reader
@@ -106,17 +109,10 @@ pub fn serial_thread(
                                 None => 
                                     {eprintln!("No window {}", chn);}
                                 };
-                            }
-    
-                       /*serial_data
-                        .lock()
-                        .unwrap()
-                        .push(line.to_string().trim().to_owned());*/
-                    }
+                            }    
+                    }   
                 },
-                State::Disconnect {} => {},
-        //let serial_port = &serial_port.lock().unwrap().to_owned();
-        // Look for serial ports
         }
     }
 }
+    }}
