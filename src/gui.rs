@@ -1,18 +1,14 @@
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
-use crate::{measurements, ylab};
-
-use crate::ylab::{YLab, YLabState};
-use crate::app::YUI;
+use crate::ylab::*;
+use crate::ystudio::Ystudio;
 use eframe::egui;
-use std::collections::HashMap;
-use std::fs;
+//use std::fs;
 
 extern crate csv;
 
 /// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 
-pub fn egui_init(app: YUI) {
+pub fn egui_init(app: Ystudio) {
     let options = eframe::NativeOptions {
         transparent: true,
         initial_window_size: Some(egui::vec2(1000.0, 800.0)),
@@ -29,19 +25,20 @@ pub fn egui_init(app: YUI) {
 /// updates the plotter
 /// 
 
-pub fn update_central_panel(ctx: &egui::Context, app: &mut YUI) {
+pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         // This zooms out, when larger values are encountered.
         // What it doesn't do, yet, is to zoom in on a new range.
-        let y_include = app.y_include.lock().unwrap();
+        // let y_include = app.y_include.lock().unwrap();
         plot = plot
-                .include_y(*y_include);
+                .include_y(*app.ui.y_include.lock().unwrap());
 
         let legend = egui_plot::Legend::default();
         plot = plot.legend(legend);
 
         plot.show(ui, |plot_ui| {
+            /// HERE
             for (_key, window) in &*app.measurements.lock().unwrap() {
                 //println!("{}:{}", key);
                 plot_ui.line(egui_plot::Line::new(window.plot_values()));
@@ -52,7 +49,7 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut YUI) {
 
 
 // YLAB CONTROL
-pub fn update_right_panel(ctx: &egui::Context, app: &mut YUI) {
+pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
     // Pulling in in the global states
     // all below need to be *dereferenced to be used
     // In the future, we'll try to only use YLabState
@@ -120,26 +117,13 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut YUI) {
                             }}});},
                 // These three states show the disconnect button
                 YLabState::Connected {start_time:_, version, port} 
-                |YLabState::Read { start_time:_, version, port } 
                 |YLabState::Reading { start_time:_, version, port }=> {
                         ui.label("Connected");
                         ui.label(format!("{}:{}", version, port));
                         if ui.button("Disconnect").on_hover_text("Disconnect from YLab").clicked(){
                             *connected = false;
-                            *ylab_state = YLabState::Disconnect{};
+                            *ylab_state = YLabState::Disconnected{ports: None};
                         };
-                },
-                YLabState::Connect {version, port} => {
-                    egui::ComboBox::from_label("Connecting")
-                        .show_ui(ui, |ui| {
-                            ui.label(format!("{}:{}", version, port));
-                        });
-                    //ui.label("Connecting");
-                    //ui.label(format!("{}:{}", version, port));
-                    ();
-                },
-                YLabState::Disconnect {  } => {
-                    ui.label("Disconnecting");
                 },
             }
         });
@@ -148,15 +132,15 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut YUI) {
 
 
 
-pub fn update_left_panel(ctx: &egui::Context, app: &mut YUI) {
+pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
-            let disp = app.serial_data.lock().unwrap().to_owned();
+            /* let disp = app.serial_data.lock().unwrap().to_owned();
             let disp = disp
                 .into_iter()
                 .rev()
                 .take(50)
                 .rev()
                 .collect::<Vec<String>>();
-        ui.label(disp.join("\n"))});
+        ui.label(disp.join("\n"))*/});
     }
