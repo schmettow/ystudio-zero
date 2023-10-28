@@ -1,44 +1,86 @@
-use crate::measurements;
-use crate::measurements::MeasurementWindow;
-use crate::ylab::{PossPort, PossReader, AvailablePorts};
-use crate::ylab::{YLabState as State, yld::{Sample, self}, YLabCmd};
+use crate::ylab::PossPort;
+use crate::ylab::{YLabState as State, yld::Sample, YLabCmd};
 
 use serialport;
-use std::collections::HashMap;
 use std::io::{BufReader,BufRead};
 use std::sync::*;
 use std::thread;
 use std::time::{Duration, Instant, };
 use egui::emath::History;
 
-
+/// Task for reading data from serial port
+/// 
+/// ylab_state is used for state transitions
+/// ylab_data is used for storing data
+/// ylab_listen is used for listening to commands
+/// 
 pub fn serial_thread(
-    ylab: Arc<Mutex<State>>,
+    ylab_state: Arc<Mutex<State>>,
     ylab_data: Arc<Mutex<History<Sample>>>,
     ylab_listen: mpsc::Receiver<YLabCmd>,
     ) -> ! {
     
+
     let mut poss_port: PossPort;
-    let mut poss_reader: PossReader;
+    //let mut poss_reader: PossReader;
     let mut reader: BufReader<Box<dyn serialport::SerialPort>>;
     
-    let mut ylab_state = ylab.lock().unwrap();
+    //let mut ylab_state = ylab.lock().unwrap();
     loop {
-        let this_state = ylab_state.clone();
+        // see if there is an incoming command from the UI
         let this_cmd = ylab_listen.try_recv();
-        match this_state {
-            State::Disconnected {ports: _}
-                => {let ports = serialport::available_ports();
-                    match ports {
-                        Err(_) => { // trying again in 500ms
-                            thread::sleep(Duration::from_millis(500));
-                            *ylab_state = State::Disconnected{ports: AvailablePorts::None}},
-                        Ok(found) => {
+        // match the current state, inside match statements are used for state transitions
+        match *ylab_state.clone().lock().unwrap() {
+            State::Connected {  start_time, version, ref port} 
+                => {match this_cmd {
+                    _ => {},
+                    Ok(YLabCmd::Read {  }) 
+                        => {reader = BufReader::new(poss_port.unwrap());
+                            *ylab_state.lock().unwrap() 
+                            = State::Reading {version, start_time, port: port.to_string()};},}},
+            State::Reading {  start_time, version, ref port} => {let mut got_first_line: bool = false;
+                // INSERT: Opening the global buffer reader
+                for line in reader.lines() {
+                    // ignore faulty lines
+                    if line.is_err() {continue;};
+                    // get the line
+                    let line = line.unwrap();
+                    // try parsing a sample from line
+                    let possible_sample 
+                        = Sample::from_csv_line(&line);
+                    // print a dot when sample not valid
+                    if possible_sample.is_err() {eprintln!("."); continue;}
+                    // collect sample
+                    let mut sample = possible_sample.unwrap();
+                    // check if this is the first line
+                    if !got_first_line {
+                        //lab_start_time = Duration::from_micros(sample.time as u64);
+                        //println!("{}", lab_start_time.as_micros());
+                        got_first_line = true
+                    }
+
+                    let run_time = Instant::now() - start_time;
+                    sample.time = run_time.as_millis() as i64;
+                    println!("{}", sample.to_csv_line());
+                
+                }},
+            // Disconnected, no ports available (yet)
+            State::Disconnected {ports} 
+                // read list of port names from serial
+                => {let avail_ports = serialport::available_ports().ok();
+                    match avail_ports {
+                        None => { 
+                            // no ports: try again in 500ms, no transition
+                            thread::sleep(Duration::from_millis(500));},
+                            //ylab_state = State::Disconnected{ports: AvailablePorts::None}},
+                        Some(found) => {
+                            // ports found: transition to Disconnected with ports
                             let port_names 
-                                = found.iter().map(|p| p.port_name.clone())
+                                = found.iter().map(|p| p.port_name)
                                     .collect::<Vec<String>>();
                             // State is updating itself by collecting available ports
-                            *ylab_state = State::Disconnected{ports: Some(port_names)}};
+                            *ylab_state.lock().unwrap() 
+                                = State::Disconnected{ports: Some(port_names)};
                             match this_cmd {
                                 _ => {},
                                 Ok(YLabCmd::Connect { version, port })
@@ -52,67 +94,16 @@ pub fn serial_thread(
                                     match poss_port {
                                         None => {thread::sleep(Duration::from_millis(10))},
                                         Some(_) 
-                                            => {*ylab_state = State::Connected {start_time: Instant::now(),
+                                            => {*ylab_state.lock().unwrap() 
+                                                = State::Connected {start_time: Instant::now(),
                                                                                 version: version, 
                                                                                 port: port.clone()}}
-                                    }
+                                    };
                                 },
-                            }
+                            };
                         }
-                    },
-            State::Connected {  start_time, version, ref port} 
-                => {match this_cmd {
-                        _ => {},
-                        Ok(YLabCmd::Read {  }) 
-                            => {reader = BufReader::new(poss_port.unwrap());
-                                *ylab_state = State::Reading {version: version, start_time: start_time, port: port.to_string()};},
-            State::Reading {version, start_time, port:_} 
-                => {let mut got_first_line: bool = false;
-                    // INSERT: Opening the global buffer reader
-                    for line in reader.lines() {
-                        // ignore faulty lines
-                        if line.is_err() {continue;};
-                        // get the line
-                        let line = line.unwrap();
-                        // try parsing a sample from line
-                        let possible_sample 
-                            = Sample::from_csv_line(&line);
-                        // print a dot when sample not valid
-                        if possible_sample.is_err() {eprintln!("."); continue;}
-                        // collect sample
-                        let mut sample = possible_sample.unwrap();
-                        // check if this is the first line
-                        if !got_first_line {
-                            //lab_start_time = Duration::from_micros(sample.time as u64);
-                            //println!("{}", lab_start_time.as_micros());
-                            got_first_line = true
-                        }
-    
-                        let run_time = Instant::now() - start_time;
-                        sample.time = run_time.as_millis() as i64;
-                        println!("{}", sample.to_csv_line());
-                            
-                        for chn in 0..8 {
-                            let chan_id  = yld::CHAN_IDS[chn];
-                            let mut sensory =
-                                measurements
-                                .lock()
-                                .unwrap();
-                            let possible_window 
-                                = sensory.get_mut(chan_id);
-                            match possible_window {
-                                Some(window) => 
-                                    {window.add(
-                                        measurements::Measurement::new(sample.time as f64,
-                                              sample.to_unit()[chn]));
-                                     },
-                                None => 
-                                    {eprintln!("No window {}", chn);}
-                                };
-                            }    
-                    }   
-                },
+                    }
+                }
+            };
         }
     }
-}
-    }}
