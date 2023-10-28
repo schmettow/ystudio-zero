@@ -1,58 +1,28 @@
 use crate::gui;
-use crate::measurements::MeasurementWindow;
+use crate::ylab::{YLabState, YLabCmd, yld::Sample};
 use eframe::egui;
 use egui::util::History;
-use std::collections::HashMap;
 use std::sync::*;
 
-pub use crate::ylab::{YLab, yld::Sample, YLabState};
-
-pub struct UserInput {
-    pub vars: String,
-    pub y_include: String,
-    pub y_include_prev: String,
-    pub port: String,
-    pub vars_prev: String,
-    pub log_name: String,
+#[derive(Debug, Clone)]
+pub struct YUI {
+    ylab_state: Arc<Mutex<YLabState>>, // shared state 
+    ylab_data: Arc<Mutex<History<Sample>>>, // data stream, advanced vecdeque
+    ylab_cmd: mpsc::Sender<YLabCmd>, // control channel
 }
 
-pub struct Monitor {
-    pub port: Arc<Mutex<String>>,
-    pub available_ports: Arc<Mutex<Vec<String>>>,
-    pub ui: UserInput,
-    pub port2: String,
-    pub serial_data: Arc<Mutex<Vec<String>>>,
-}
-
-impl Monitor {
-    pub fn new() -> Self {
-        Monitor {
-            //ylab_state: Arc::new(Mutex::new(YLabState::Disconnected {ports: None})),
-            //ylab_version: Arc::new(Mutex::new(YLab::Mini)),
-            //connected: Arc::new(Mutex::new(false)),
-            //y_include: Arc::new(Mutex::new(0.0)),
-            measurements: Arc::new(Mutex::new(HashMap::new())),
-            // alternativ implementation for measurement windows
-            history: Arc::new(Mutex::new(History::new(0..200,100.0))),
-            //port: Arc::new(Mutex::new(String::new())),
-            //available_ports: Arc::new(Mutex::new(Vec::new())),
-            //port2: String::new(),
-            ui: UserInput {
-                vars: String::new(),
-                vars_prev: "Y0".into(),
-                port: String::new(),
-                y_include: String::new(),
-                y_include_prev: String::new(),
-                log_name: String::new(),
-            },
-            serial_data: Arc::new(Mutex::new(Vec::new())),
+/*impl YUI {
+    pub fn new(ylab_state) -> Self {
+        YUI {history: Arc::new(Mutex::new(History::new(0..200,10.0))),
+                ui: UserInput {},
+                serial_data: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
 
-}
+}*/
 
-impl eframe::App for Monitor {
+impl eframe::App for YUI {
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
     #[cfg(feature = "persistence")]
