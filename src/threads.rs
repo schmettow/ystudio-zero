@@ -14,7 +14,7 @@ use egui::emath::History;
 /// ylab_data is used for storing data
 /// ylab_listen is used for listening to commands
 /// 
-pub fn serial_thread(
+pub fn ylab_thread(
     ylab_state: Arc<Mutex<State>>,
     ylab_data: Arc<Mutex<History<Sample>>>,
     ylab_listen: mpsc::Receiver<YLabCmd>,
