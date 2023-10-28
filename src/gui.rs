@@ -2,7 +2,7 @@
 use crate::{measurements, ylab};
 
 use crate::ylab::{YLab, YLabState};
-use crate::app::Monitor;
+use crate::app::YUI;
 use eframe::egui;
 use std::collections::HashMap;
 use std::fs;
@@ -12,7 +12,7 @@ extern crate csv;
 /// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 
-pub fn egui_init(app: Monitor) {
+pub fn egui_init(app: YUI) {
     let options = eframe::NativeOptions {
         transparent: true,
         initial_window_size: Some(egui::vec2(1000.0, 800.0)),
@@ -29,7 +29,7 @@ pub fn egui_init(app: Monitor) {
 /// updates the plotter
 /// 
 
-pub fn update_central_panel(ctx: &egui::Context, app: &mut Monitor) {
+pub fn update_central_panel(ctx: &egui::Context, app: &mut YUI) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         // This zooms out, when larger values are encountered.
@@ -52,7 +52,7 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut Monitor) {
 
 
 // YLAB CONTROL
-pub fn update_right_panel(ctx: &egui::Context, app: &mut Monitor) {
+pub fn update_right_panel(ctx: &egui::Context, app: &mut YUI) {
     // Pulling in in the global states
     // all below need to be *dereferenced to be used
     // In the future, we'll try to only use YLabState
@@ -148,7 +148,7 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut Monitor) {
 
 
 
-pub fn update_left_panel(ctx: &egui::Context, app: &mut Monitor) {
+pub fn update_left_panel(ctx: &egui::Context, app: &mut YUI) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
             let disp = app.serial_data.lock().unwrap().to_owned();
