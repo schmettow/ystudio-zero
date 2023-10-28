@@ -1,15 +1,16 @@
-/// YLab Data (YLD)
+/// YLab Connection
 /// 
-/// provides structures to hold YLab data streams 
-/// and methods to convert from and into 
+/// provides structures and methods to connect 
+/// and read from YLab devices
+
 pub use std::fmt;
 pub use std::time::Instant;
-
 use serialport::SerialPort;
+
+/// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum YLabVersion {Pro, Go, Mini}
-
 impl YLabVersion {
     pub fn baud(&self) -> i32 {
         match *self {
@@ -38,8 +39,6 @@ impl fmt::Display for YLabVersion {
     }
 }
 
-
-
 /// Optional list of serial port names
 pub type AvailablePorts = Option<Vec<String>>;
 /// Possible serial port
@@ -58,13 +57,13 @@ pub type PossReader = Option<Box<dyn std::io::BufRead>>;
 /// Similar to how it is done in YLab-Edge.
 
 #[derive(PartialEq, Debug, Clone)]
-
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {start_time: Instant, version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
     Reading {start_time: Instant, version: YLabVersion, port: String},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum YLabCmd {
     Disconnect,
     Connect {version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
@@ -96,7 +95,7 @@ pub mod yld {
     }
     
     /// Error types for parsing CSV lines
-    #[derive(Debug)]
+    #[derive(Clone, Debug,)]
     pub enum ParseError {
         Len(usize), 
         Dev(String), 
