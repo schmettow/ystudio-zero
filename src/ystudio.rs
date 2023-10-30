@@ -2,19 +2,52 @@ pub use std::sync::mpsc::Sender;
 pub use std::{thread, sync::*};
 pub use eframe::egui;
 pub use egui::util::History;
+pub use egui_plot::{PlotPoint, PlotPoints};
 
-pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, yld::Sample};
+use crate::ylab::AvailablePorts;
+pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
 pub use crate::gui::*;
 
+
+pub trait MultiLine {
+    fn multi_lines(&self) -> [[f64; 2]; 8];
+}
+
+impl MultiLine for History<Ytf8> {
+    fn multi_lines(&self) -> [[f64; 2];8] {
+        let mut lines: [[f64; 2];8];
+        for i in self.iter() {
+            let time = i.0;
+            let dev = i.1.dev;
+            let read = i.1.read;
+            for v in read.iter() {
+                lines[dev as usize][0] = time as f64;
+                lines[dev as usize][0] = *v as f64;
+            }
+        }
+        return lines
+    }
+}
+
+
+/// Data for the UI
+/// 
+/// This is sometimes necessary to
+/// + make adjustments to the display (y_include)
+/// + hold several values in the UI (port, Version) before submitting the command to YLab
+/// 
 #[derive(Debug)]
 pub struct Yui {
     pub y_include: Arc<Mutex<f32>>,
+    pub selected_port: Arc<Mutex<Option<String>>>,
+    pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
 }
 
 impl Yui {
     pub fn new () -> Self {
-        Self {
-            y_include: Arc::new(Mutex::new(1.0))
+        Self {  y_include: Arc::new(Mutex::new(1.0)),
+                selected_port: Arc::new(Mutex::new(None)),
+                selected_version: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -23,7 +56,7 @@ impl Yui {
 #[derive(Debug)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
-    pub ylab_data: Arc<Mutex<History<Sample>>>, // data stream, advanced vecdeque
+    pub ylab_data: Arc<Mutex<History<Ytf8>>>, // data stream, advanced vecdeque
     pub ylab_cmd: mpsc::Sender<YLabCmd>, // sending commands to ylab
     pub ui: Yui, // sending commands to ylab
 }
@@ -33,11 +66,10 @@ impl Ystudio {
         let ylab_state = Arc::new(Mutex::new(YLabState::Disconnected {ports: None}));
         let ylab_data = Arc::new(Mutex::new(History::new(0..200,100.0)));
         let ui = Yui::new();
-        Self {
-            ylab_state,
-            ylab_data,
-            ylab_cmd,
-            ui,
+        Self {  ylab_state,
+                ylab_data,
+                ylab_cmd,
+                ui,
         }
     }
 }
