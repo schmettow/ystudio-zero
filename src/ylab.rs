@@ -70,25 +70,35 @@ pub enum YLabCmd {
     Read {},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
 }
 
-/// YLab data stream (YLD)
+/// YLab DATA
 
-pub mod yld {
-    /// Sample of YLab data
-    /// 
-    /// YLabs keeps data with a time stamp, 
-    /// a device identifier and a vector of eight readings. 
-    /// The time stamp is relative to the startup of the Ylab device.
+pub mod ydata {
     pub use std::error::Error;
     pub static CHAN_IDS: [&str; 8] = [ "y0", "y1", "y2", "y3",
     "y4", "y5", "y6", "y7"];
 
-    /// Sample of YLab data
+    /// YLab Long Data
     /// 
-    /// YLabs keeps data with a time stamp,
+    /// YLD keeps data one row per measure with 
+    /// + a time stamp, 
+    /// + a device identifier 
+    /// + a sensory index (position in the bank)
+    /// a value
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Yld {
+        pub time: f64,
+        pub dev: i8,
+        pub value: f64,
+    }
+    
+    /// YLab transport format with width 8
+    /// 
+    /// YLabs send data with a time stamp,
     /// a device identifier and a vector of eight readings.
     ///
     #[derive(Copy, Clone, Debug)]
-    pub struct Sample {
+    pub struct Ytf8 {
         pub dev: i8,
         pub time: i64,
         pub read: [u16;8],
@@ -102,10 +112,10 @@ pub mod yld {
         Time(String)}
     
     /// Result type for parsing CSV lines
-    pub type FailableSample = Result<Sample, ParseError>;
+    pub type FailableSample = Result<Ytf8, ParseError>;
     
     /// Methods for YLab data samples
-    impl Sample {
+    impl Ytf8 {
         /// Create a new sample from a CSV line as String
         /// 
         /// The CSV line is expected to have 10 columns:
@@ -140,7 +150,7 @@ pub mod yld {
                     Err(_) => read[chn] = 0
                 }
             }
-            Ok(Sample{dev: dev.unwrap(), 
+            Ok(Ytf8{dev: dev.unwrap(), 
                         time: time.unwrap() as i64, 
                         read: read})
         }
@@ -157,13 +167,23 @@ pub mod yld {
             return out
         }
 
+        pub fn to_yld(&self, time: f64) -> Vec<Yld> {
+            let mut out: Vec<Yld> = Vec::new();
+            let mut pos: i8 = 0;
+            for value in self.read.iter() {
+                pos += 1;
+                out.push(Yld{time, dev: self.dev, value: *value as f64});
+            };
+            return out
+        }
+
         pub fn to_unit(&self) -> [f64;8]{
             self.read.map(|r| {r as f64/ (2^15) as f64 })
         }
     }
 
     
-    impl Default for Sample {
+    impl Default for Ytf8 {
         fn default() -> Self {
             Self {dev: 0, time: 0, read: [0, 0, 0, 0, 0, 0, 0, 0]}
         }
