@@ -1,6 +1,9 @@
-use crate::ylab::*;
+use std::net::Incoming;
+
+use crate::{ylab::*, ystudio::MultiLine};
 use crate::ystudio::Ystudio;
 use eframe::egui;
+use egui_plot::{PlotPoint, PlotPoints};
 //use std::fs;
 
 extern crate csv;
@@ -31,17 +34,21 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
         // This zooms out, when larger values are encountered.
         // What it doesn't do, yet, is to zoom in on a new range.
         // let y_include = app.y_include.lock().unwrap();
+        // This happens instantly
+
+        // Grab the inconing history
+        let incoming = app.ylab_data.lock().unwrap().to_owned();
+        // Adjust the upper y limit (just to showcase)
         plot = plot
                 .include_y(*app.ui.y_include.lock().unwrap());
-
+        // Add a legend
         let legend = egui_plot::Legend::default();
-        plot = plot.legend(legend);
-
+            plot = plot.legend(legend);
+        // Create 8 lines
+        let plot_lines = incoming.multi_lines();
         plot.show(ui, |plot_ui| {
-            /// HERE
-            for (_key, window) in &*app.measurements.lock().unwrap() {
-                //println!("{}:{}", key);
-                plot_ui.line(egui_plot::Line::new(window.plot_values()));
+            for series in plot_lines.iter() {
+                plot_ui.line(egui_plot::Line::new(*series));
             }
         });
     });
@@ -54,10 +61,7 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
     // all below need to be *dereferenced to be used
     // In the future, we'll try to only use YLabState
     //let mut this_ylab = app.ylab_version.lock().unwrap();
-    let mut connected = app.connected.lock().unwrap();
     let mut ylab_state = app.ylab_state.lock().unwrap();
-    let mut serial_port = app.port.lock().unwrap();
-
     // RIGHT PANEL
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
@@ -121,7 +125,6 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
                         ui.label("Connected");
                         ui.label(format!("{}:{}", version, port));
                         if ui.button("Disconnect").on_hover_text("Disconnect from YLab").clicked(){
-                            *connected = false;
                             *ylab_state = YLabState::Disconnected{ports: None};
                         };
                 },
