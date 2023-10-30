@@ -1,5 +1,5 @@
 use crate::ylab::PossPort;
-use crate::ylab::{YLabState as State, yld::Sample, YLabCmd};
+use crate::ylab::{YLabState as State, ydata::*, YLabCmd};
 
 use serialport;
 use std::io::{BufReader,BufRead};
@@ -16,7 +16,7 @@ use egui::emath::History;
 /// 
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<State>>,
-    ylab_data: Arc<Mutex<History<Sample>>>,
+    ylab_data: Arc<Mutex<History<Ytf8>>>,
     ylab_listen: mpsc::Receiver<YLabCmd>,
     ) -> ! {
     
@@ -47,7 +47,7 @@ pub fn ylab_thread(
                     let line = line.unwrap();
                     // try parsing a sample from line
                     let possible_sample 
-                        = Sample::from_csv_line(&line);
+                        = Ytf8::from_csv_line(&line);
                     // print a dot when sample not valid
                     if possible_sample.is_err() {eprintln!("."); continue;}
                     // collect sample
@@ -59,8 +59,8 @@ pub fn ylab_thread(
                         got_first_line = true
                     }
 
-                    let run_time = Instant::now() - start_time;
-                    sample.time = run_time.as_millis() as i64;
+                    let ystudio_time = (Instant::now() - start_time).as_millis() as f64;
+                    ylab_data.lock().unwrap().add(ystudio_time, sample);
                     println!("{}", sample.to_csv_line());
                 
                 }},
