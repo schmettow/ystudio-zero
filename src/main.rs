@@ -14,13 +14,14 @@ fn main() {
     // + ylab_state, which is a mutexed YLabState
     // + ylab_data, which is a egui History of YLab Samples
     // + ui, which captures UI related variables
-    let ystudio = ystudio::Ystudio::new(ylab_cmd);
+    let ystudio_1 = ystudio::Ystudio::new(ylab_cmd);
+    let ystudio_2 = ystudio_1.clone();
     // The thread to collect Ylab data is started
     // consuming copies of ylab state, data and command listener
     thread::spawn(move || {
         threads::ylab_thread(
-            ystudio.ylab_state,
-            ystudio.ylab_data,
+            ystudio_1.ylab_state,
+            ystudio_1.ylab_data,
             ylab_listen
         );
     });
@@ -28,5 +29,5 @@ fn main() {
     // starting the egui, consuming the ystudio object.
     // The details of the GUI are in gui.rs.
     // The below works, because Ystudio objects implement eframe::App.
-    gui::egui_init(ystudio);
+    gui::egui_init(ystudio_2);
 }

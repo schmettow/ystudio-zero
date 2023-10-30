@@ -21,49 +21,53 @@ pub fn ylab_thread(
     ) -> ! {
     
 
-    let mut poss_port: PossPort;
+    let mut poss_port: PossPort = None;
     //let mut poss_reader: PossReader;
     let mut reader: BufReader<Box<dyn serialport::SerialPort>>;
-    
-    //let mut ylab_state = ylab.lock().unwrap();
     loop {
-        // see if there is an incoming command from the UI
+        // capture YLab state and incoming commands from the UI
+        let this_ylab_state = ylab_state.lock().unwrap().clone();
         let this_cmd = ylab_listen.try_recv();
-        // match the current state, inside match statements are used for state transitions
-        match *ylab_state.clone().lock().unwrap() {
+        // match the current state and do the transitions
+        match this_ylab_state {
             State::Connected {  start_time, version, ref port} 
                 => {match this_cmd {
-                    _ => {},
                     Ok(YLabCmd::Read {  }) 
-                        => {reader = BufReader::new(poss_port.unwrap());
-                            *ylab_state.lock().unwrap() 
-                            = State::Reading {version, start_time, port: port.to_string()};},}},
-            State::Reading {  start_time, version, ref port} => {let mut got_first_line: bool = false;
-                // INSERT: Opening the global buffer reader
-                for line in reader.lines() {
-                    // ignore faulty lines
-                    if line.is_err() {continue;};
-                    // get the line
-                    let line = line.unwrap();
-                    // try parsing a sample from line
-                    let possible_sample 
-                        = Ytf8::from_csv_line(&line);
-                    // print a dot when sample not valid
-                    if possible_sample.is_err() {eprintln!("."); continue;}
-                    // collect sample
-                    let mut sample = possible_sample.unwrap();
-                    // check if this is the first line
-                    if !got_first_line {
-                        //lab_start_time = Duration::from_micros(sample.time as u64);
-                        //println!("{}", lab_start_time.as_micros());
-                        got_first_line = true
-                    }
-
-                    let ystudio_time = (Instant::now() - start_time).as_millis() as f64;
-                    ylab_data.lock().unwrap().add(ystudio_time, sample);
-                    println!("{}", sample.to_csv_line());
-                
-                }},
+                        => {*ylab_state.lock().unwrap() = State::Reading {version, start_time, port: port.to_string()};},        
+                      _ => {},}},
+            State::Reading {  start_time, version, ref port} 
+                => {let mut got_first_line: bool = false;
+                    // In the previous state we've checked that the port works, so we can unwrap
+                    let port = serialport::new(port.clone(), version.baud() as u32)
+                                        .timeout(Duration::from_millis(1))
+                                        .flow_control(serialport::FlowControl::Software)
+                                        .open()
+                                        .unwrap();
+                    let reader = BufReader::new(port);
+                    
+                    for line in reader.lines() {
+                        // ignore faulty lines
+                        if line.is_err() {continue;};
+                        // get the line
+                        let line = line.unwrap();
+                        // try parsing a sample from line
+                        let possible_sample 
+                            = Ytf8::from_csv_line(&line);
+                        // print a dot when sample not valid
+                        if possible_sample.is_err() {eprintln!("."); continue;}
+                        // collect sample
+                        let sample = possible_sample.unwrap();
+                        // check if this is the first line
+                        if !got_first_line {
+                            let _lab_start_time = Duration::from_micros(sample.time as u64);
+                            // here we can dynamically infer the data format (YTF or YLD).
+                            got_first_line = true
+                        }
+                        let ystudio_time = (Instant::now() - start_time).as_millis() as f64;
+                        ylab_data.lock().unwrap().add(ystudio_time, sample);
+                        println!("{}", sample.to_csv_line());
+                    
+                    }},
             // Disconnected, no ports available (yet)
             State::Disconnected {ports} 
                 // read list of port names from serial
@@ -74,32 +78,35 @@ pub fn ylab_thread(
                             thread::sleep(Duration::from_millis(500));},
                             //ylab_state = State::Disconnected{ports: AvailablePorts::None}},
                         Some(found) => {
-                            // ports found: transition to Disconnected with ports
+                            // ports found: transition to Disconnected with available ports
                             let port_names 
-                                = found.iter().map(|p| p.port_name)
+                                = found.iter().map(|p| p.clone().port_name)
                                     .collect::<Vec<String>>();
                             // State is updating itself by collecting available ports
-                            *ylab_state.lock().unwrap() 
-                                = State::Disconnected{ports: Some(port_names)};
+                            *ylab_state.lock().unwrap() = State::Disconnected{ports: Some(port_names)};
                             match this_cmd {
-                                _ => {},
                                 Ok(YLabCmd::Connect { version, port })
-                                => {poss_port = 
-                                    serialport::new(port.clone(),
-                                        version.baud() as u32)
-                                        .timeout(Duration::from_millis(1))
-                                        .flow_control(serialport::FlowControl::Software)
-                                        .open()
-                                        .ok(); // ok() turns a Result into an Option
+                                => {// We make one connection attempt to verify the port
+                                    // later we can add code for sending commands to the 
+                                    // YLab, e.g. which sensors of a bank to collect.
+                                    // If Rust holds its promise 
+                                    // the serial port is properly closed when going out of scope
+                                    let poss_port = 
+                                        serialport::new(port.clone(),
+                                            version.baud() as u32)
+                                            .timeout(Duration::from_millis(1))
+                                            .flow_control(serialport::FlowControl::Software)
+                                            .open()
+                                            .ok(); // ok() turns a Result into an Option
                                     match poss_port {
                                         None => {thread::sleep(Duration::from_millis(10))},
                                         Some(_) 
-                                            => {*ylab_state.lock().unwrap() 
-                                                = State::Connected {start_time: Instant::now(),
+                                            => {*ylab_state.lock().unwrap() = State::Connected {start_time: Instant::now(),
                                                                                 version: version, 
                                                                                 port: port.clone()}}
                                     };
                                 },
+                                _ => {},
                             };
                         }
                     }

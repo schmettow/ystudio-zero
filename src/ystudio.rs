@@ -4,7 +4,7 @@ pub use eframe::egui;
 pub use egui::util::History;
 pub use egui_plot::{PlotPoint, PlotPoints};
 
-use crate::ylab::AvailablePorts;
+//use crate::ylab::AvailablePorts;
 pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
 pub use crate::gui::*;
 
@@ -15,7 +15,7 @@ pub trait MultiLine {
 
 impl MultiLine for History<Ytf8> {
     fn multi_lines(&self) -> [[f64; 2];8] {
-        let mut lines: [[f64; 2];8];
+        let mut lines: [[f64; 2];8] = [[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0]];
         for i in self.iter() {
             let time = i.0;
             let dev = i.1.dev;
@@ -36,13 +36,12 @@ impl MultiLine for History<Ytf8> {
 /// + make adjustments to the display (y_include)
 /// + hold several values in the UI (port, Version) before submitting the command to YLab
 /// 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Yui {
     pub y_include: Arc<Mutex<f32>>,
     pub selected_port: Arc<Mutex<Option<String>>>,
     pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
 }
-
 impl Yui {
     pub fn new () -> Self {
         Self {  y_include: Arc::new(Mutex::new(1.0)),
@@ -70,6 +69,16 @@ impl Ystudio {
                 ylab_data,
                 ylab_cmd,
                 ui,
+        }
+    }
+}
+
+impl Clone for Ystudio {
+    fn clone(&self) -> Self {
+        Self {  ylab_state: self.ylab_state.clone(),
+                ylab_data: self.ylab_data.clone(),
+                ylab_cmd: self.ylab_cmd.clone(),
+                ui: self.ui.clone(),
         }
     }
 }

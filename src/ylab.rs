@@ -169,9 +169,9 @@ pub mod ydata {
 
         pub fn to_yld(&self, time: f64) -> Vec<Yld> {
             let mut out: Vec<Yld> = Vec::new();
-            let mut pos: i8 = 0;
+            //let mut pos: i8 = 0;
             for value in self.read.iter() {
-                pos += 1;
+              //  pos += 1;
                 out.push(Yld{time, dev: self.dev, value: *value as f64});
             };
             return out

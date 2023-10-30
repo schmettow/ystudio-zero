@@ -1,10 +1,7 @@
-use std::net::Incoming;
-
 use crate::{ylab::*, ystudio::MultiLine};
 use crate::ystudio::Ystudio;
 use eframe::egui;
-use egui_plot::{PlotPoint, PlotPoints};
-//use std::fs;
+//use egui_plot::{PlotPoint, PlotPoints};
 
 extern crate csv;
 
@@ -37,7 +34,7 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
         // This happens instantly
 
         // Grab the inconing history
-        let incoming = app.ylab_data.lock().unwrap().to_owned();
+        let incoming = app.ylab_data.lock().unwrap().clone();
         // Adjust the upper y limit (just to showcase)
         plot = plot
                 .include_y(*app.ui.y_include.lock().unwrap());
@@ -61,80 +58,54 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
     // all below need to be *dereferenced to be used
     // In the future, we'll try to only use YLabState
     //let mut this_ylab = app.ylab_version.lock().unwrap();
-    let mut ylab_state = app.ylab_state.lock().unwrap();
+    let ylab_state = app.ylab_state.lock().unwrap();
     // RIGHT PANEL
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
-            /*match *connected {
-                true => {
-                    ui.label("Connected");
-                    if ui.button("Disconnect").on_hover_text("Disconnect from YLab").clicked(){
-                        *connected = false;
-                        *ylab_state = YLabState::Disconnected;
-                    };
-                },
-                false => {
-                    ui.label("Disconnected");
-                    if ui.button("Connect").on_hover_text("Connect to YLab").clicked() {
-                        *ylab_state = YLabState::ReqConnect {
-                            version: *this_ylab, 
-                            port: *serial_port};
-                    };
-                }
-            }*/
-
-            // YLAB VERSION
-            /* egui::ComboBox::from_label("YLab version")
-                .selected_text(format!("{}", this_ylab))
-                .show_ui(ui, |ui| {
-                    ui.radio_value(&mut *this_ylab, YLab::Pro, "Pro");
-                    ui.radio_value(&mut *this_ylab, YLab::Go, "Go");
-                    ui.radio_value(&mut *this_ylab, YLab::Mini, "Mini");});
-                    ui.label(this_ylab.baud().to_string());
-            ui.label("Serial Ports");*/
-            
-            // SERIAL PORT
-            /* egui::ComboBox::from_label("Serial Port")
-                .selected_text(format!("{}", serial_port.to_owned()))
-                .show_ui(ui, |ui| {
-                    for i in app.available_ports.lock().unwrap().iter() {
-                        ui.selectable_value(&mut *serial_port, 
-                                            i.to_string(), 
-                                            i.to_string());
-                    }
-                });*/
-
-
-
-            // The new part, using YLabState matching
-            let this_state = ylab_state.clone();
-            match this_state {
-                // Disconnected with possibly available ports
-                YLabState::Disconnected {ports} => {
-                    egui::ComboBox::from_label("Available Ports")
-                        .show_ui(ui, |ui| {
-                            if let Some(ports) = ports {
-                                for i in ports.iter() {
-                                    ui.selectable_value(&mut *serial_port, 
-                                        i.to_string(), 
-                                        i.to_string());
-                            }}});},
-                // These three states show the disconnect button
-                YLabState::Connected {start_time:_, version, port} 
-                |YLabState::Reading { start_time:_, version, port }=> {
-                        ui.label("Connected");
-                        ui.label(format!("{}:{}", version, port));
-                        if ui.button("Disconnect").on_hover_text("Disconnect from YLab").clicked(){
-                            *ylab_state = YLabState::Disconnected{ports: None};
-                        };
-                },
-            }
-        });
-    }
-            //let this_ylab = app.ylab_version.lock().unwrap();
-
-
-
+            match ylab_state.clone() {
+                YLabState::Connected { start_time:_, version, port }
+                => {ui.label("Connected");
+                    ui.label(format!("{}:{}", version, port));},
+                YLabState::Reading { start_time:_, version, port }
+                => {ui.label("Reading");
+                    ui.label(format!("{}:{}", version, port));},
+                YLabState::Disconnected {ports}
+                    => {ui.label("Disconnected");
+                        match ports {
+                            None => {ui.label("No ports available");},
+                            Some(ports) => {
+                                egui::ComboBox::from_label("Available Ports")
+                                    .show_ui(ui, |ui| {
+                                        for i in ports.iter() {
+                                            ui.selectable_value(&mut *app.ui.selected_port.lock().unwrap(), 
+                                                Some(i.to_string()), 
+                                                i);}}
+                                            );
+                                egui::ComboBox::from_label("YLab version")
+                                    .show_ui(ui, |ui| {
+                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Pro), "Pro");
+                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Go), "Go");
+                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Mini), "Mini");});
+                                let selected_version = app.ui.selected_version.lock().unwrap().clone();
+                                let selected_port = app.ui.selected_port.lock().unwrap().clone();
+                                // The button is only shown when both version and port are selected
+                                match (selected_version, selected_port)  {
+                                    (Some(version), Some(port)) => {
+                                        if ui.button("Connect").on_hover_text("Connect to YLab").clicked(){
+                                        app.ylab_cmd.send(YLabCmd::Connect {
+                                            version: version, 
+                                            port: port}).unwrap();
+                                        }
+                                    },
+                                    _ => {ui.label("Select port and version");}, 
+                                } // Connect button
+                            } // available ports
+                        } // match ports
+                    }, // arm
+                } // match
+            }); // sidepanel
+        } // fn
+ 
 pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
