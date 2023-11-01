@@ -22,9 +22,24 @@ pub fn egui_init(app: Ystudio) {
     ).unwrap();
 }
 
-/// updates the plotter
-/// 
+pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
+    egui::SidePanel::left("left_side_panel")
+        .show(ctx, |ui| {
+            ui.heading("Ystudio Zero");
+            ui.label("Make recording")
+            /* let disp = app.serial_data.lock().unwrap().to_owned();
+            let disp = disp
+                .into_iter()
+                .rev()
+                .take(50)
+                .rev()
+                .collect::<Vec<String>>();
+        ui.label(disp.join("\n"))*/});
+    }
 
+
+
+/// updates the plotting area
 pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
@@ -52,69 +67,96 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
 }
 
 
-// YLAB CONTROL
+/// YLAB CONTROL in the right panel
+/// + Connecting and Disconnecting
+/// + Starting and stopping recodings
 pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
     // Pulling in in the global states
     // all below need to be *dereferenced to be used
     // In the future, we'll try to only use YLabState
     //let mut this_ylab = app.ylab_version.lock().unwrap();
-    let ylab_state = app.ylab_state.lock().unwrap();
-    // RIGHT PANEL
+    
+     // RIGHT PANEL
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
+            let ylab_state = app.ylab_state.lock().unwrap();
+            // setting defaults
+            let selected_version 
+                = match app.ui.selected_version.lock().unwrap().clone() {
+                    Some(version) => version,
+                    None => YLabVersion::Pro,};
+            
             match ylab_state.clone() {
                 YLabState::Connected { start_time:_, version, port }
-                => {ui.label("Connected");
-                    ui.label(format!("{}:{}", version, port));},
+                    => {ui.heading("Connected");
+                        ui.label(format!("{}:{}", version, port));
+                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
+                            app.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
+                            app.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        },
                 YLabState::Reading { start_time:_, version, port }
-                => {ui.label("Reading");
-                    ui.label(format!("{}:{}", version, port));},
+                    => {ui.heading("Reading");
+                        ui.label(format!("{}:{}", version, port));},
+
+                YLabState::Recording { path }
+                    => {ui.heading("Recording");
+                        ui.label(format!("{}", path.display()));},
+
+                // Selecting port and YLab version
+                // When both are selected, the connect button is shown
                 YLabState::Disconnected {ports}
-                    => {ui.label("Disconnected");
+                    => {ui.heading("Disconnected");
+                        // unpacking version and port
+                        /* let selected_version = 
+                            match app.ui.selected_version.lock().unwrap().clone() {
+                                Some(version) => version,
+                                None => YLabVersion::Pro,
+                            };*/
+                        let selected_port 
+                            = match app.ui.selected_port.lock().unwrap().clone() {
+                                    Some(port) => port,
+                                    None => ports.as_ref().unwrap()[0].to_string(),};
+               
+                        // When ports are available, show the options
                         match ports {
                             None => {ui.label("No ports available");},
                             Some(ports) => {
-                                egui::ComboBox::from_label("Available Ports")
-                                    .show_ui(ui, |ui| {
-                                        for i in ports.iter() {
-                                            ui.selectable_value(&mut *app.ui.selected_port.lock().unwrap(), 
-                                                Some(i.to_string()), 
-                                                i);}}
-                                            );
-                                egui::ComboBox::from_label("YLab version")
-                                    .show_ui(ui, |ui| {
-                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Pro), "Pro");
-                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Go), "Go");
-                                        ui.radio_value(&mut *app.ui.selected_version.lock().unwrap(), Some(YLabVersion::Mini), "Mini");});
-                                let selected_version = app.ui.selected_version.lock().unwrap().clone();
-                                let selected_port = app.ui.selected_port.lock().unwrap().clone();
+                                // one selectable label for each port
+                                ui.label("Available Ports");
+                                for i in ports.iter() {
+                                    // Create a selectable label for each port
+                                    if ui.add(egui::SelectableLabel::new(selected_port == *i, i.to_string())).clicked() { 
+                                        *app.ui.selected_port.lock().unwrap() = Some(i.clone());
+                                    }
+                                };
+                                // one selectable per version
+                                ui.label("Version");
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
+                                    *app.ui.selected_version.lock().unwrap() = Some(YLabVersion::Pro);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
+                                  *app.ui.selected_version.lock().unwrap() = Some(YLabVersion::Go);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
+                                    *app.ui.selected_version.lock().unwrap() = Some(YLabVersion::Mini);
+                                }
+                                // The button is only shown when version and port are selected (which currently is by default).
+                                // It commits the connection command to the YLab thread.
+
+                                match ( app.ui.selected_version.lock().unwrap().clone(), app.ui.selected_port.lock().unwrap().clone())  {
+                                    (Some(version), Some(port)) 
+                                        =>  if ui.button("Connect")
+                                                .on_hover_text("Connect to YLab")
+                                                .clicked()  {app.ylab_cmd.send(  YLabCmd::Connect {version: version, port: port.to_string()}).unwrap();},
+                                        _ => {ui.label("Select port and version");}
+                                }
                                 // The button is only shown when both version and port are selected
-                                match (selected_version, selected_port)  {
-                                    (Some(version), Some(port)) => {
-                                        if ui.button("Connect").on_hover_text("Connect to YLab").clicked(){
-                                        app.ylab_cmd.send(YLabCmd::Connect {
-                                            version: version, 
-                                            port: port}).unwrap();
-                                        }
-                                    },
-                                    _ => {ui.label("Select port and version");}, 
-                                } // Connect button
-                            } // available ports
+                                 // Connect button
+                                } // available ports
                         } // match ports
                     }, // arm
                 } // match
             }); // sidepanel
         } // fn
  
-pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
-    egui::SidePanel::left("left_side_panel")
-        .show(ctx, |ui| {
-            /* let disp = app.serial_data.lock().unwrap().to_owned();
-            let disp = disp
-                .into_iter()
-                .rev()
-                .take(50)
-                .rev()
-                .collect::<Vec<String>>();
-        ui.label(disp.join("\n"))*/});
-    }
