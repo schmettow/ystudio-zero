@@ -1,4 +1,4 @@
-use crate::ylab::PossPort;
+//use crate::ylab::PossPort;
 use crate::ylab::{YLabState as State, ydata::*, YLabCmd};
 
 use serialport;
@@ -20,10 +20,6 @@ pub fn ylab_thread(
     ylab_listen: mpsc::Receiver<YLabCmd>,
     ) -> ! {
     
-
-    let mut poss_port: PossPort = None;
-    //let mut poss_reader: PossReader;
-    let mut reader: BufReader<Box<dyn serialport::SerialPort>>;
     loop {
         // capture YLab state and incoming commands from the UI
         let this_ylab_state = ylab_state.lock().unwrap().clone();
@@ -38,7 +34,8 @@ pub fn ylab_thread(
             State::Reading {  start_time, version, ref port} 
                 => {let mut got_first_line: bool = false;
                     // In the previous state we've checked that the port works, so we can unwrap
-                    let port = serialport::new(port.clone(), version.baud() as u32)
+                    let port 
+                        = serialport::new(port, version.baud() as u32)
                                         .timeout(Duration::from_millis(1))
                                         .flow_control(serialport::FlowControl::Software)
                                         .open()
@@ -68,8 +65,9 @@ pub fn ylab_thread(
                         println!("{}", sample.to_csv_line());
                     
                     }},
+            State::Recording { path: _ } => {},
             // Disconnected, no ports available (yet)
-            State::Disconnected {ports} 
+            State::Disconnected {ports: _} 
                 // read list of port names from serial
                 => {let avail_ports = serialport::available_ports().ok();
                     match avail_ports {
