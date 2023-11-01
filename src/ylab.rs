@@ -5,12 +5,15 @@
 
 pub use std::fmt;
 pub use std::time::Instant;
-use serialport::SerialPort;
+use std::path::PathBuf;
+//use egui::epaint::tessellator::Path;
+//use serialport::SerialPort;
 
 /// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum YLabVersion {Pro, Go, Mini}
+
 impl YLabVersion {
     pub fn baud(&self) -> i32 {
         match *self {
@@ -19,15 +22,8 @@ impl YLabVersion {
             YLabVersion::Mini => 125_200,
         }
     }
-
-    pub fn _ticks_per_sec(&self) -> usize {
-        match *self {
-            YLabVersion::Pro => 1_000_000,
-            YLabVersion::Go => 1_000_000,
-            YLabVersion::Mini => 100,
-        }
-    }
 }
+
 
 impl fmt::Display for YLabVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -42,9 +38,9 @@ impl fmt::Display for YLabVersion {
 /// Optional list of serial port names
 pub type AvailablePorts = Option<Vec<String>>;
 /// Possible serial port
-pub type PossPort = Option<Box<dyn SerialPort>>;
+//pub type PossPort = Option<Box<dyn SerialPort>>;
 /// Possible serial port
-pub type PossReader = Option<Box<dyn std::io::BufRead>>;
+//pub type PossReader = Option<Box<dyn std::io::BufRead>>;
 
 
 /// YLab State
@@ -59,15 +55,17 @@ pub type PossReader = Option<Box<dyn std::io::BufRead>>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
-    Connected {start_time: Instant, version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
-    Reading {start_time: Instant, version: YLabVersion, port: String},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
+    Connected {start_time: Instant, version: YLabVersion, port: String},
+    Reading {start_time: Instant, version: YLabVersion, port: String},
+    Recording {path: PathBuf}
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabCmd {
     Disconnect,
-    Connect {version: YLabVersion, port: String},//port: Box<dyn serialport::SerialPort>},
-    Read {},  //reader: BufReader<Box<dyn serialport::SerialPort>>},
+    Connect {version: YLabVersion, port: String},
+    Read {},
+    Record {file: PathBuf},
 }
 
 /// YLab DATA
@@ -97,6 +95,15 @@ pub mod ydata {
     /// YLabs send data with a time stamp,
     /// a device identifier and a vector of eight readings.
     ///
+    /// 
+    
+    #[derive(Copy, Clone, Debug)]
+    pub struct Ytf<const N: usize, T>  {
+        pub dev: i8,
+        pub time: i64,
+        pub read: [T;N],
+    }
+
     #[derive(Copy, Clone, Debug)]
     pub struct Ytf8 {
         pub dev: i8,
@@ -177,9 +184,10 @@ pub mod ydata {
             return out
         }
 
-        pub fn to_unit(&self) -> [f64;8]{
-            self.read.map(|r| {r as f64/ (2^15) as f64 })
-        }
+        /*pub fn to_unit(&self) -> (){
+            let read_unit = self.read.map(|r| {r as f64/ (2^15) as f64 });
+            self.read = read_unit;
+        }*/
     }
 
     
