@@ -108,7 +108,7 @@ pub mod ydata {
     pub struct Ytf8 {
         pub dev: i8,
         pub time: i64,
-        pub read: [u16;8],
+        pub read: [f64;8],
     }
     
     /// Error types for parsing CSV lines
@@ -147,14 +147,14 @@ pub mod ydata {
             let dev = cols[1].parse::<i8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
             // reading the remaining 8 cols
-            let mut read: [u16; 8] = [0,0,0,0,0,0,0,0];
+            let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
             for chn in 0..8 {
                 // parse value
                 let value 
-                    = cols[chn + 2].parse::<u16>();
+                    = cols[chn + 2].parse::<f64>();
                 match value {
                     Ok(v) => read[chn] = v,
-                    Err(_) => read[chn] = 0
+                    Err(_) => read[chn] = 0.0
                 }
             }
             Ok(Ytf8{dev: dev.unwrap(), 
@@ -193,7 +193,7 @@ pub mod ydata {
     
     impl Default for Ytf8 {
         fn default() -> Self {
-            Self {dev: 0, time: 0, read: [0, 0, 0, 0, 0, 0, 0, 0]}
+            Self {dev: 0, time: 0, read: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
         }
     }
 }
