@@ -1,7 +1,8 @@
-use crate::{ylab::*, ystudio::MultiLine};
+use crate::ylab::*;
+use crate::ylab::ydata::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
-//use egui_plot::{PlotPoint, PlotPoints};
+use egui_plot::PlotPoints;
 
 extern crate csv;
 
@@ -22,45 +23,26 @@ pub fn egui_init(app: Ystudio) {
     ).unwrap();
 }
 
-pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
-    egui::SidePanel::left("left_side_panel")
-        .show(ctx, |ui| {
-            ui.heading("Ystudio Zero");
-            ui.label("Make recording")
-            /* let disp = app.serial_data.lock().unwrap().to_owned();
-            let disp = disp
-                .into_iter()
-                .rev()
-                .take(50)
-                .rev()
-                .collect::<Vec<String>>();
-        ui.label(disp.join("\n"))*/});
-    }
-
-
 
 /// updates the plotting area
-pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
+pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) 
+{
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
-        // This zooms out, when larger values are encountered.
-        // What it doesn't do, yet, is to zoom in on a new range.
-        // let y_include = app.y_include.lock().unwrap();
-        // This happens instantly
-
-        // Grab the inconing history
-        let incoming = app.ylab_data.lock().unwrap().clone();
-        // Adjust the upper y limit (just to showcase)
+        // Split inconing history into points series
+        let incoming: egui::util::History<ydata::Yld> = app.ylab_data.lock().unwrap().clone();
+        let series = incoming.split();
         plot = plot
-                .include_y(*app.ui.y_include.lock().unwrap());
-        // Add a legend
+                .auto_bounds_x()
+                .auto_bounds_y().
+                legend(egui_plot::Legend::default());
         let legend = egui_plot::Legend::default();
-            plot = plot.legend(legend);
-        // Create 8 lines
-        let plot_lines = incoming.multi_lines();
+        plot = plot.legend(legend);
+        // Plot lines
         plot.show(ui, |plot_ui| {
-            for series in plot_lines.iter() {
-                plot_ui.line(egui_plot::Line::new(*series));
+            for points in series.iter() {
+                let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
+                plot_ui.line(line);    
             }
         });
     });
@@ -70,6 +52,7 @@ pub fn update_central_panel(ctx: &egui::Context, app: &mut Ystudio) {
 /// YLAB CONTROL in the right panel
 /// + Connecting and Disconnecting
 /// + Starting and stopping recodings
+/// 
 pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
     // Pulling in in the global states
     // all below need to be *dereferenced to be used
@@ -160,3 +143,19 @@ pub fn update_right_panel(ctx: &egui::Context, app: &mut Ystudio) {
             }); // sidepanel
         } // fn
  
+ 
+pub fn update_left_panel(ctx: &egui::Context, app: &mut Ystudio) {
+    egui::SidePanel::left("left_side_panel")
+        .show(ctx, |ui| {
+            ui.heading("Ystudio Zero");
+            ui.label("Make recording")
+            /* let disp = app.serial_data.lock().unwrap().to_owned();
+            let disp = disp
+                .into_iter()
+                .rev()
+                .take(50)
+                .rev()
+                .collect::<Vec<String>>();
+        ui.label(disp.join("\n"))*/});
+    }
+
