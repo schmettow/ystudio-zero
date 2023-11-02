@@ -9,32 +9,11 @@ pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
 pub use crate::gui::*;
 
 
-pub trait MultiLine {
-    fn multi_lines(&self) -> [[f64; 2]; 8];
-}
-
-impl MultiLine for History<Ytf8> {
-    fn multi_lines(&self) -> [[f64; 2];8] {
-        let mut lines: [[f64; 2];8] = [[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0],[0.0, 0.0]];
-        for i in self.iter() {
-            let time = i.0;
-            let dev = i.1.dev;
-            let read = i.1.read;
-            for v in read.iter() {
-                lines[dev as usize][0] = time as f64;
-                lines[dev as usize][0] = *v as f64;
-            }
-        }
-        return lines
-    }
-}
-
 
 /// Data for the UI
 /// 
-/// This is sometimes necessary to
-/// + make adjustments to the display (y_include)
-/// + hold several values in the UI (port, Version) before submitting the command to YLab
+/// This is sometimes necessary to hold several values in the UI 
+/// (port, Version) before submitting the command to YLab
 /// 
 #[derive(Debug, Clone)]
 pub struct Yui {
@@ -55,15 +34,17 @@ impl Yui {
 #[derive(Debug)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
-    pub ylab_data: Arc<Mutex<History<Ytf8>>>, // data stream, advanced vecdeque
+    pub ylab_data: Arc<Mutex<History<Yld>>>, // data stream, advanced vecdeque
     pub ylab_cmd: mpsc::Sender<YLabCmd>, // sending commands to ylab
     pub ui: Yui, // sending commands to ylab
 }
 
 impl Ystudio {
     pub fn new(ylab_cmd: Sender<YLabCmd>) -> Self {
-        let ylab_state = Arc::new(Mutex::new(YLabState::Disconnected {ports: None}));
-        let ylab_data = Arc::new(Mutex::new(History::new(0..200,100.0)));
+        let ylab_state = Arc::new(Mutex::new(
+                                                YLabState::Disconnected {ports: None}));
+        let ylab_data = Arc::new(Mutex::new(
+                                                    History::new(0..10_000,5.0)));
         let ui = Yui::new();
         Self {  ylab_state,
                 ylab_data,
