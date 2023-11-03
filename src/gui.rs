@@ -40,8 +40,8 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         plot = plot.legend(legend);
         // Plot lines
         plot.show(ui, |plot_ui| {
-            for (probe, points) in series.iter().enumerate() {
-                if ystud.ui.selected_channels.lock().unwrap()[probe] {
+            for (chan, points) in series.iter().enumerate() {
+                if ystud.ui.selected_channels.lock().unwrap()[chan] {
                     let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
                     plot_ui.line(line);
                 }
