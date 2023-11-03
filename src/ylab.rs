@@ -53,7 +53,8 @@ pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {start_time: Instant, version: YLabVersion, port: String},
     Reading {start_time: Instant, version: YLabVersion, port: String},
-    Recording {path: PathBuf}
+    Pausing {start_time: Instant, version: YLabVersion, port: String},
+    Recording {path: PathBuf},
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -61,6 +62,7 @@ pub enum YLabCmd {
     Disconnect,
     Connect {version: YLabVersion, port: String},
     Read {},
+    Pause {},
     Record {file: PathBuf},
 }
 
@@ -170,7 +172,7 @@ pub mod ydata {
             return point_map;
         }
     }
-    
+
     /// Methods for YLab data samples
     impl Ytf8 {
         /// Create a new sample from a CSV line as String
@@ -212,6 +214,7 @@ pub mod ydata {
                         read: read})
         }
 
+
         pub fn to_csv_line(&self) -> String {
             let out: String = 
                 [[self.time.to_string(), self.dev.to_string()]
@@ -228,7 +231,7 @@ pub mod ydata {
             let mut out: Vec<Yld> = Vec::new();
             let mut probe: i8 = 0;
             for value in self.read.iter() {
-                out.push(Yld{time, dev: 0, sensory: 0, probe: self.dev, value: *value as f64});
+                out.push(Yld{time, dev: 0, sensory: 0, probe: probe, value: *value as f64});
                 probe += 1;
             };
             return out
