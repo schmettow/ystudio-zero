@@ -86,6 +86,8 @@ pub mod ydata {
     /// + a sensory index (position in the bank)
     /// a value
 
+    pub const YLD_HEAD: &str = "time,dev,sensory,chan,value\r\n";
+
     #[derive(Copy, Clone, Debug)]
     pub struct Yld {
         pub time: Duration,
@@ -93,7 +95,44 @@ pub mod ydata {
         pub sensory : i8,
         pub chan: i8,
         pub value: f64,}
+    
+    impl Yld {
+        pub fn to_csv_line(&self) -> String {
+            let mut out = String::new();
+            out.push_str(&self.time.as_secs_f64().to_string());
+            out.push_str(",");
+            out.push_str(&self.dev.to_string());
+            out.push_str(",");
+            out.push_str(&self.sensory.to_string());
+            out.push_str(",");
+            out.push_str(&self.chan.to_string());
+            out.push_str(",");
+            out.push_str(&self.value.to_string());
+            out.push_str("\r\n");
+            return out
+        }
 
+    }
+
+    /* impl std::io::Write for Yld {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let mut out = String::new();
+            out.push_str(&self.time.as_secs().to_string());
+            out.push_str(",");
+            out.push_str(&self.dev.to_string());
+            out.push_str(",");
+            out.push_str(&self.sensory.to_string());
+            out.push_str(",");
+            out.push_str(&self.chan.to_string());
+            out.push_str(",");
+            out.push_str(&self.value.to_string());
+            out.push_str("\r\n");
+        };
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+*/
     pub type _YldBuf = Vec<Yld>;
     pub use egui_plot::PlotPoints;
     //pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; N];
@@ -125,7 +164,7 @@ pub mod ydata {
         }
     }
 
-    /// YLab transport format
+    /// YLab transport format (YTF)
     /// 
     /// YLabs send data with a time stamp,
     /// a device identifier and a vector of eight readings.
