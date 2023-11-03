@@ -36,7 +36,7 @@ impl Yui {
 #[derive(Debug)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
-    pub ylab_data: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
+    pub yld_hist: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
     pub ylab_cmd: mpsc::Sender<YLabCmd>, // sending commands to ylab
     pub ui: Yui, // user interface value buffer
 }
@@ -45,11 +45,11 @@ impl Ystudio {
     pub fn new(ylab_cmd: Sender<YLabCmd>) -> Self {
         let ylab_state = Arc::new(Mutex::new(
                                                 YLabState::Disconnected {ports: None}));
-        let ylab_data = Arc::new(Mutex::new(
+        let yld_hist = Arc::new(Mutex::new(
                                                     History::new(0..10_000,5.0)));
         let ui = Yui::new();
         Self {  ylab_state,
-                ylab_data,
+                yld_hist,
                 ylab_cmd,
                 ui,
         }
@@ -59,7 +59,7 @@ impl Ystudio {
 impl Clone for Ystudio {
     fn clone(&self) -> Self {
         Self {  ylab_state: self.ylab_state.clone(),
-                ylab_data: self.ylab_data.clone(),
+                yld_hist: self.yld_hist.clone(),
                 ylab_cmd: self.ylab_cmd.clone(),
                 ui: self.ui.clone(),
         }

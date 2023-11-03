@@ -30,7 +30,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         // Split inconing history into points series
-        let incoming: egui::util::History<ydata::Yld> = ystud.ylab_data.lock().unwrap().clone();
+        let incoming: egui::util::History<ydata::Yld> = ystud.yld_hist.lock().unwrap().clone();
         let series = incoming.split();
         plot = plot
                 .auto_bounds_x()
@@ -81,10 +81,10 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         },
                 YLabState::Reading { start_time:_, version, port , recording:_}
-                    => {let ylab_data = ystud.ylab_data.lock().unwrap();
+                    => {let yld_hist = ystud.yld_hist.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port));
-                        let sample_rate: Option<f32> = ylab_data.mean_time_interval();
+                        let sample_rate: Option<f32> = yld_hist.mean_time_interval();
                         match sample_rate {
                             Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
                             None => {ui.heading("Reading");},
