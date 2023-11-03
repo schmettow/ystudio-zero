@@ -20,12 +20,14 @@ pub struct Yui {
     pub y_include: Arc<Mutex<f32>>,
     pub selected_port: Arc<Mutex<Option<String>>>,
     pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
+    pub selected_channels: Arc<Mutex<[bool; 8]>>,
 }
 impl Yui {
     pub fn new () -> Self {
         Self {  y_include: Arc::new(Mutex::new(1.0)),
                 selected_port: Arc::new(Mutex::new(None)),
                 selected_version: Arc::new(Mutex::new(None)),
+                selected_channels: Arc::new(Mutex::new([true; 8])),
         }
     }
 }
@@ -34,9 +36,9 @@ impl Yui {
 #[derive(Debug)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
-    pub ylab_data: Arc<Mutex<History<Yld>>>, // data stream, advanced vecdeque
+    pub ylab_data: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
     pub ylab_cmd: mpsc::Sender<YLabCmd>, // sending commands to ylab
-    pub ui: Yui, // sending commands to ylab
+    pub ui: Yui, // user interface value buffer
 }
 
 impl Ystudio {
