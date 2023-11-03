@@ -63,8 +63,9 @@ pub fn ylab_thread(
                             got_first_line = true
                         }
                         let ystudio_time = (Instant::now() - start_time).as_secs_f64();
-                        let hist_len = ylab_data.lock().unwrap().len();
-                        println!("{}: {} | {}", ystudio_time, sample.read[0], hist_len);
+                        //let hist_len = ylab_data.lock().unwrap().len();
+                        println!("{}", sample.to_csv_line());
+                        //println!("{}: {} | {}", ystudio_time, sample.read[0], hist_len);
                         for measure in sample.to_yld(Duration::from_millis(ystudio_time as u64)).iter() {
                             ylab_data.lock().unwrap().add(ystudio_time, *measure);    
                         }
@@ -72,6 +73,7 @@ pub fn ylab_thread(
                         //println!("{}", sample.to_csv_line());
                     
                     }},
+            State::Pausing{..} => {},
             State::Recording { path: _ } => {},
             // Disconnected, no ports available (yet)
             State::Disconnected {ports: _} 
