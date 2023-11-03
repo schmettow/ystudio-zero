@@ -40,8 +40,8 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         plot = plot.legend(legend);
         // Plot lines
         plot.show(ui, |plot_ui| {
-            for (chan, points) in series.iter().enumerate() {
-                if ystud.ui.selected_channels.lock().unwrap()[chan] {
+            for (probe, points) in series.iter().enumerate() {
+                if ystud.ui.selected_channels.lock().unwrap()[probe] {
                     let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
                     plot_ui.line(line);
                 }
@@ -81,11 +81,22 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         },
                 YLabState::Reading { start_time:_, version, port }
-                    => {ui.heading("Reading");
+                    => {let ylab_data = ystud.ylab_data.lock().unwrap();
+                        ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port));
+                        let sample_rate: Option<f32> = ylab_data.mean_time_interval();
+                        match sample_rate {
+                            Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
+                            None => {ui.heading("Reading");},
+                        }
                         ui.heading("Channels");
-                        let selected_channels = ystud.ui.selected_channels.lock().unwrap();
-                        for (chan, b) in  selected_channels.iter().enumerate(){
+                        let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
+                        for (chan, mut b) in  selected_channels.clone().iter().enumerate(){
+                            let chan_selector = ui.checkbox(&mut b.clone(), chan.to_string());
+                            if chan_selector.changed() {
+                                selected_channels[chan] = !b;
+                            }
+
                             /* if ui.checkbox(&mut b.clone(), chan.to_string()).clicked() {
                                 ystud.ui.selected_channels.lock().unwrap()[chan] = !*b;
                             }*/
