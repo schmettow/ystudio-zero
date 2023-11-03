@@ -1,4 +1,4 @@
-use crate::ylab::*;
+use crate::ylab::{*, self};
 use crate::ylab::ydata::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
@@ -80,7 +80,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         if ui.button("Stop").on_hover_text("Stop reading").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         },
-                YLabState::Reading { start_time:_, version, port }
+                YLabState::Reading { start_time:_, version, port , recording:_}
                     => {let ylab_data = ystud.ylab_data.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port));
@@ -101,15 +101,6 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 ystud.ui.selected_channels.lock().unwrap()[chan] = !*b;
                             }*/
                         }},
-                        
-                
-                YLabState::Pausing { start_time:_, version, port }
-                    => {ui.heading("Pausing");
-                        ui.label(format!("{}:{}", version, port));},
-
-                YLabState::Recording { path }
-                    => {ui.heading("Recording");
-                        ui.label(format!("{}", path.display()));},
 
                 // Selecting port and YLab version
                 // When both are selected, the connect button is shown
@@ -168,6 +159,27 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
             ui.heading("Ystudio Zero");
+           let ylab_state = ystud.ylab_state.lock().unwrap().clone();
+            match ylab_state {
+                YLabState::Reading { start_time:_, version, port , recording}
+                    => {match recording {
+                        Some(Recording::Raw {start_time, file}) => {
+                            ui.heading("Recording");
+                            ui.label(format!("Raw: {}", file.display()));
+                            ui.label(format!("Started: {}", start_time.elapsed().as_secs()));
+                            if ui.button("Stop").on_hover_text("Stop recording").clicked(){
+                                ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                            },
+                        _ => {}};
+                        ui.heading("Recording");
+                        let start_rec = ui.button("Start")
+                            .on_hover_text("Start a new recording");
+                        if start_rec.clicked() {
+                            let file = "test.csv";
+                            ystud.ylab_cmd.send(YLabCmd::Record{file: file.into()}).unwrap();
+                        }},
+                _ => {},
+                }
             ui.label("Make recording");
         });
     }
