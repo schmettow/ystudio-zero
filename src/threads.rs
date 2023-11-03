@@ -29,9 +29,9 @@ pub fn ylab_thread(
             State::Connected {  start_time, version, ref port} 
                 => {match this_cmd {
                     Ok(YLabCmd::Read {  }) 
-                        => {*ylab_state.lock().unwrap() = State::Reading {version, start_time, port: port.to_string()};},        
+                        => {*ylab_state.lock().unwrap() = State::Reading {version, start_time, port: port.to_string(), recording: None};},        
                       _ => {},}},
-            State::Reading {  start_time, version, ref port} 
+            State::Reading {  start_time, version, ref port, recording: _} 
                 => {let mut got_first_line: bool = false;
                     // In the previous state we've checked that the port works, so we can unwrap
                     let port 
@@ -73,9 +73,6 @@ pub fn ylab_thread(
                         //println!("{}", sample.to_csv_line());
                     
                     }},
-            State::Pausing{..} => {},
-            State::Recording { path: _ } => {},
-            // Disconnected, no ports available (yet)
             State::Disconnected {ports: _} 
                 // read list of port names from serial
                 => {let avail_ports = serialport::available_ports().ok();
