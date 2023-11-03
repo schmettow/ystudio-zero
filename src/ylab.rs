@@ -86,39 +86,39 @@ pub mod ydata {
         pub time: Duration,
         pub dev: i8,
         pub sensory : i8,
-        pub probe: i8,
+        pub chan: i8,
         pub value: f64,}
 
     pub type _YldBuf = Vec<Yld>;
     pub use egui_plot::PlotPoints;
-    pub type MultiLines = Vec<Vec<[f64; 2]>>;
-    
+    //pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; N];
+    /// Multi lines are a fixed array of vectors of points
+    pub type YldHistory = History<Yld>;
+    pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; 8];
+
+    pub fn new_multi_lines(hist: &YldHistory) -> MultiLines<8> {
+        [vec!(), vec!(), vec!(), vec!(), vec!(), vec!(), vec!(), vec!()]
+    }
+
     /// Splitting a Yld History into a vector of point series
     /// This is used to plot a bunch of lines in egui_plot
-    pub trait ToMultiLines {
-        fn split(&self) -> MultiLines;
+    pub trait SplitByChan {
+        fn split(&self) -> MultiLines<8>;
     }
 
-    impl ToMultiLines for History<Yld>{
-        fn split (&self) -> MultiLines {
-            let mut point_map: MultiLines = Vec::new();
+    impl SplitByChan for History<Yld>{
+        fn split(&self) -> MultiLines<8> {
+            let mut out = new_multi_lines(&self);
             for measure in self.iter() {
                 let time = measure.0;
-                let _dev = measure.1.dev as usize;
-                let _sensory = measure.1.sensory as usize;
-                let probe = measure.1.probe as usize;
+                let chan = measure.1.chan as usize;
                 let value = measure.1.value;
                 let point = [time, value];
-                let point_id = probe as usize;
-                match point_map.get_mut(point_id) {
-                    Some(points) => points.push(point),
-                    None => {point_map.insert(probe, vec!(point));},
-                }           
+                out[chan].push(point);
             }
-            return point_map;
+            return out;
         }
     }
-
 
     /// YLab transport format
     /// 
@@ -154,24 +154,24 @@ pub mod ydata {
     /// Result type for parsing CSV lines
     pub type FailableSample = Result<Ytf8, ParseError>;
     
-    impl ToMultiLines for Ytf8 {
-        fn split (&self) -> MultiLines {
+    /*impl ToMultiLines for Ytf8 {
+        fn split (&self) -> MultiLines<8> {
             let mut point_map: MultiLines = Vec::new();
             let time = self.time as f64;
             let dev = self.dev as usize;
             let read = self.read;
-            for probe in 0..8 {
-                let value = read[probe];
+            for chan in 0..8 {
+                let value = read[chan];
                 let point = [time, value];
-                //let point_id = probe as usize;
-                match point_map.get_mut(probe) {
+                //let point_id = chan as usize;
+                match point_map.get_mut(chan) {
                     Some(points) => points.push(point),
-                    None => {point_map.insert(probe, vec!(point));},
+                    None => {point_map.insert(chan, vec!(point));},
                 }           
             }
             return point_map;
         }
-    }
+    }*/
 
     /// Methods for YLab data samples
     impl Ytf8 {
@@ -229,10 +229,10 @@ pub mod ydata {
 
         pub fn to_yld(&self, time: Duration) -> Vec<Yld> {
             let mut out: Vec<Yld> = Vec::new();
-            let mut probe: i8 = 0;
+            let mut chan: i8 = 0;
             for value in self.read.iter() {
-                out.push(Yld{time, dev: 0, sensory: 0, probe: probe, value: *value as f64});
-                probe += 1;
+                out.push(Yld{time, dev: 0, sensory: 0, chan: chan, value: *value as f64});
+                chan += 1;
             };
             return out
         }
