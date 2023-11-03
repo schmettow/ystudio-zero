@@ -49,12 +49,17 @@ pub type AvailablePorts = Option<Vec<String>>;
 /// Similar to how it is done in YLab-Edge.
 
 #[derive(PartialEq, Debug, Clone)]
+pub enum Recording {
+    Raw {start_time: Instant, file: PathBuf},
+    Yld {start_time: Instant, file: PathBuf},
+    Paused {start_time: Instant, file: PathBuf},
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {start_time: Instant, version: YLabVersion, port: String},
-    Reading {start_time: Instant, version: YLabVersion, port: String},
-    Pausing {start_time: Instant, version: YLabVersion, port: String},
-    Recording {path: PathBuf},
+    Reading {start_time: Instant, version: YLabVersion, port: String, recording: Option<Recording> },
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -70,7 +75,7 @@ pub enum YLabCmd {
 
 pub mod ydata {
     pub use std::error::Error;
-    use std::{time::Duration, collections::HashMap};
+    use std::{time::Duration};
 
     use egui::util::History;
     /// YLab Long Data
@@ -154,24 +159,6 @@ pub mod ydata {
     /// Result type for parsing CSV lines
     pub type FailableSample = Result<Ytf8, ParseError>;
     
-    /*impl ToMultiLines for Ytf8 {
-        fn split (&self) -> MultiLines<8> {
-            let mut point_map: MultiLines = Vec::new();
-            let time = self.time as f64;
-            let dev = self.dev as usize;
-            let read = self.read;
-            for chan in 0..8 {
-                let value = read[chan];
-                let point = [time, value];
-                //let point_id = chan as usize;
-                match point_map.get_mut(chan) {
-                    Some(points) => points.push(point),
-                    None => {point_map.insert(chan, vec!(point));},
-                }           
-            }
-            return point_map;
-        }
-    }*/
 
     /// Methods for YLab data samples
     impl Ytf8 {
@@ -242,11 +229,6 @@ pub mod ydata {
             self
         }
 
-/*        pub fn to_unit(&mut self) -> (){
-            const MAX: f64 = 32_768.0;
-            let read_unit = self.read.map(|r| {r/MAX});
-            self.read = read_unit;
-        }*/
     }
 
     
