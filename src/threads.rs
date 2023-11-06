@@ -135,7 +135,7 @@ pub mod ylab {
                         Some(YLabCmd::Read {}) 
                             => {*ylab_state.lock().unwrap() = YLabState::Reading {version, start_time, port: port.to_string(), recording: None};},        
                         _   => {},}},
-                YLabState::Reading {  start_time, version, ref port, recording: recording} 
+                YLabState::Reading {  start_time, version, ref port, recording} 
                     => {let mut got_first_line: bool = false;
                         // In the previous state we've checked that the port works, so we can unwrap
                         let port 
@@ -188,8 +188,9 @@ pub mod ylab {
                         match avail_ports {
                             None => { 
                                 // no ports: try again in 500ms, no transition
-                                thread::sleep(Duration::from_millis(500));},
+                                thread::sleep(Duration::from_millis(500));//},
                                 //ylab_state = YLabState::Disconnected{ports: AvailablePorts::None}},
+                                *ylab_state.lock().unwrap() = YLabState::Disconnected{ports: None};},
                             Some(found) => {
                                 // ports found: transition to Disconnected with available ports
                                 let port_names 
