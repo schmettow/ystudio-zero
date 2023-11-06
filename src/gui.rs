@@ -113,18 +113,19 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             Some(ports) 
                                 => {
                                 // unpacking version and port
-                                let selected_port 
+                                let selected_port: Option<String> 
                                     = match ystud.ui.selected_port.lock().unwrap().clone() {
                                         // in case there is a user-selected port, use it
-                                        Some(port) => port,
+                                        Some(port) => Some(port),
                                         // otherwise use the first available port
-                                        None => ports[0].to_string(),
+                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
+                                                else {None},
                                     };
                                 // one selectable label for each port
                                 ui.label("Available Ports");
                                 for i in ports.iter() {
                                     // Create a selectable label for each port
-                                    if ui.add(egui::SelectableLabel::new(selected_port == *i, i.to_string())).clicked() { 
+                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), i.to_string())).clicked() { 
                                         *ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
                                     }
                                 };

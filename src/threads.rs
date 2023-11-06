@@ -185,6 +185,7 @@ pub mod ylab {
                 YLabState::Disconnected {ports: _} 
                     // read list of port names from serial
                     => {let avail_ports = serialport::available_ports().ok();
+                        
                         match avail_ports {
                             None => { 
                                 // no ports: try again in 500ms, no transition
