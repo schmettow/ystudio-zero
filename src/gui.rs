@@ -105,17 +105,21 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 // Selecting port and YLab version
                 // When both are selected, the connect button is shown
                 YLabState::Disconnected {ports}
-                    => {ui.heading("Disconnected");
-                        // unpacking version and port
-                        let selected_port 
-                            = match ystud.ui.selected_port.lock().unwrap().clone() {
-                                    Some(port) => port,
-                                    None => ports.as_ref().unwrap()[0].to_string(),};
-               
+                    => {ui.heading("Disconnected");              
                         // When ports are available, show the options
                         match ports {
-                            None => {ui.label("No ports available");},
-                            Some(ports) => {
+                            None => {ui.label("No ports available");
+                                    eprintln!("No ports available");},
+                            Some(ports) 
+                                => {
+                                // unpacking version and port
+                                let selected_port 
+                                    = match ystud.ui.selected_port.lock().unwrap().clone() {
+                                        // in case there is a user-selected port, use it
+                                        Some(port) => port,
+                                        // otherwise use the first available port
+                                        None => ports[0].to_string(),
+                                    };
                                 // one selectable label for each port
                                 ui.label("Available Ports");
                                 for i in ports.iter() {
