@@ -1,15 +1,18 @@
-pub use std::sync::mpsc::Sender;
-pub use std::{thread, sync::*};
+
 pub use eframe::egui;
 pub use egui::util::History;
 pub use egui_plot::{PlotPoint, PlotPoints};
 
 //use crate::ylab::AvailablePorts;
-pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
+
 pub use crate::gui::*;
 
 
 
+pub mod yui{
+    pub use std::sync::mpsc::Sender;
+    pub use std::{thread, sync::*};
+    pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
 /// Data for the UI
 /// 
 /// This is sometimes necessary to hold several values in the UI 
@@ -17,28 +20,59 @@ pub use crate::gui::*;
 /// 
 #[derive(Debug, Clone)]
 pub struct Yui {
-    pub y_include: Arc<Mutex<f32>>,
     pub selected_port: Arc<Mutex<Option<String>>>,
     pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
     pub selected_channels: Arc<Mutex<[bool; 8]>>,
 }
 impl Yui {
     pub fn new () -> Self {
-        Self {  y_include: Arc::new(Mutex::new(1.0)),
-                selected_port: Arc::new(Mutex::new(None)),
+        Self {  selected_port: Arc::new(Mutex::new(None)),
                 selected_version: Arc::new(Mutex::new(None)),
                 selected_channels: Arc::new(Mutex::new([true; 8])),
         }
     }
 }
+}
 
+pub mod yldstor {
+    use std::path::PathBuf;
+    #[derive(Clone)]
+    pub enum YldStoreState {
+        Idle,
+        Recording {path: PathBuf},
+        Pausing {path: PathBuf}}
+
+    /*impl Clone for State {
+        fn clone(&self) -> State {
+            match self {
+                State::Idle => State::Idle,
+                State::Recording {file} => State::Recording {file: file.to_owned()},
+                State::Pausing {file} => State::Pausing {file: file.clone()},
+            }
+        }
+    }*/
+
+    #[derive(Clone)]
+    pub enum YldStoreCmd {
+        New {path: PathBuf},
+        Pause,
+        Resume,
+        Stop,
+    }
+
+}
+
+
+pub use std::sync::mpsc::Sender;
+pub use std::{thread, sync::*};
+pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, ydata::*};
 
 #[derive(Debug)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
     pub yld_hist: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
     pub ylab_cmd: mpsc::Sender<YLabCmd>, // sending commands to ylab
-    pub ui: Yui, // user interface value buffer
+    pub ui: yui::Yui, // user interface value buffer
 }
 
 impl Ystudio {
@@ -47,7 +81,7 @@ impl Ystudio {
                                                 YLabState::Disconnected {ports: None}));
         let yld_hist = Arc::new(Mutex::new(
                                                     History::new(0..10_000,5.0)));
-        let ui = Yui::new();
+        let ui = yui::Yui::new();
         Self {  ylab_state,
                 yld_hist,
                 ylab_cmd,
