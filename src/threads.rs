@@ -121,6 +121,7 @@ pub mod ylab {
     pub fn ylab_thread(
         ylab_state: Arc<Mutex<YLabState>>,
         yld_hist: Arc<Mutex<History<Yld>>>,
+        yld_store_send: mpsc::Sender<Yld>,
         ylab_listen: mpsc::Receiver<YLabCmd>,
         ) -> ! {
         
@@ -160,11 +161,6 @@ pub mod ylab {
                                 continue;}
                             // collect sample
                             let sample = possible_sample.unwrap().to_unit();
-                            // check if we are recording
-                            match recording {
-                                Some(Recording::Raw {start_time:_, file: _}) => {},
-                                _                                            => {},
-                            }
                             // check if this is the first line
                             if !got_first_line {
                                 let _lab_start_time = Duration::from_micros(sample.time as u64);
@@ -176,12 +172,14 @@ pub mod ylab {
                             println!("{}", sample.to_csv_line());
                             //println!("{}: {} | {}", ystudio_time, sample.read[0], hist_len);
                             for measure in sample.to_yld(Duration::from_millis(ystudio_time as u64)).iter() {
-                                yld_hist.lock().unwrap().add(ystudio_time, *measure);    
+                                yld_hist.lock().unwrap().add(ystudio_time, *measure);
+                                yld_store_send.send(*measure).unwrap();
                             }
                             
                             //println!("{}", sample.to_csv_line());
                         
                         }},
+
                 YLabState::Disconnected {ports: _} 
                     // read list of port names from serial
                     => {let avail_ports = serialport::available_ports().ok();

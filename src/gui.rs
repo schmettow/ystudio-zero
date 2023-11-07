@@ -159,33 +159,38 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             });
         }
  
- 
+use egui_file::FileDialog;
+
 pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
-            ui.heading("Ystudio Zero");
-           let ylab_state = ystud.ylab_state.lock().unwrap().clone();
+            ui.heading("Recording");
+            let ylab_state = ystud.ylab_state.lock().unwrap().clone();
             match ylab_state {
                 YLabState::Reading { start_time:_, version, port , recording}
-                    => {match recording {
-                        Some(Recording::Raw {start_time, file}) => {
-                            ui.heading("Recording");
-                            ui.label(format!("Raw: {}", file.display()));
-                            ui.label(format!("Started: {}", start_time.elapsed().as_secs()));
-                            if ui.button("Stop").on_hover_text("Stop recording").clicked(){
-                                ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
-                            },
-                        _ => {}};
+                => {match recording {
+                    Some(Recording::Raw {start_time, file}) 
+                    => {
                         ui.heading("Recording");
-                        let start_rec = ui.button("Start")
-                            .on_hover_text("Start a new recording");
+                        ui.label(format!("Raw: {}", file.display()));
+                        ui.label(format!("Started: {}", start_time.elapsed().as_secs()));
+                        if ui.button("Stop").on_hover_text("Stop recording").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}},
+                    Some(Recording::Yld {start_time, file}) 
+                    => {},
+                    Some(Recording::Paused {start_time, file}) 
+                    => {},
+                    None 
+                    => {
+                        let start_rec = ui.button("New Recording")
+                        .on_hover_text("Start a new recording");
                         if start_rec.clicked() {
                             let file = "test.csv";
-                            ystud.ylab_cmd.send(YLabCmd::Record{file: file.into()}).unwrap();
-                        }},
-                _ => {},
-                }
-            ui.label("Make recording");
+                        ystud.ylab_cmd.send(YLabCmd::Record{file: file.into()}).unwrap();}},
+                    }
+                },
+              _ => {},
+            }
         });
     }
 
