@@ -6,6 +6,7 @@
 pub use std::fmt;
 pub use std::time::Instant;
 pub use std::path::PathBuf;
+use serialport;
 
 //use egui::epaint::tessellator::Path;
 //use serialport::SerialPort;
@@ -55,11 +56,13 @@ pub enum Recording {
     Paused {start_time: Instant, file: PathBuf},
 }
 
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {start_time: Instant, version: YLabVersion, port: String},
-    Reading {start_time: Instant, version: YLabVersion, port: String, recording: Option<Recording>},
+    Reading {start_time: Instant, version: YLabVersion, port: String, 
+        recording: Option<Recording>},
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -67,7 +70,7 @@ pub enum YLabCmd {
     Disconnect,
     Connect {version: YLabVersion, port: String},
     Read {},
-    Pause {},
+    Stop {},
     Record {file: PathBuf},
 }
 
@@ -156,14 +159,14 @@ pub fn ylab_thread(
                     .open();
                 match poss_port {
                     Err(_) => { eprintln!("connnection failed"); 
-                                thread::sleep(Duration::from_millis(500))},
+                                    thread::sleep(Duration::from_millis(500))},
                     Ok(_) => {*ylab_state.lock().unwrap() = YLabState::Reading {
-                                                            start_time: Instant::now(),
-                                                            version: version, 
-                                                            port: port.clone(),
-                                                            recording: None}}};
+                                                        start_time: Instant::now(),
+                                                        version: version, 
+                                                        port: port.clone(),
+                                                        recording: None}}};
                 },
-
+            
             (YLabState::Reading { start_time, version, port, recording:_}, 
             None) 
                 =>  {let mut got_first_line: bool = false;
@@ -182,7 +185,7 @@ pub fn ylab_thread(
                         // get the line
                         let line = line.unwrap();
                         // try parsing a sample from line
-                        let possible_sample 
+                                                let possible_sample 
                             = data::Ytf8::from_csv_line(&line);
                         // print a dot when sample not valid
                         if possible_sample.is_err() {

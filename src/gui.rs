@@ -76,18 +76,20 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.label(format!("{}:{}", version, port));
                         if ui.button("Read").on_hover_text("Read from YLab").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
-                        if ui.button("Stop").on_hover_text("Stop reading").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
                         },
                 YLabState::Reading { start_time:_, version, port , recording:_}
                     => {let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port));
+
                         let sample_rate: Option<f32> = yld_wind.mean_time_interval();
                         match sample_rate {
                             Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
                             None => {ui.heading("Reading");},
                         }
+
                         ui.heading("Channels");
                         let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
                         for (chan, b) in  selected_channels.clone().iter().enumerate(){
@@ -95,7 +97,10 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             if chan_selector.changed() {
                                 selected_channels[chan] = !b;
                             }
-                        }},
+                        };
+                        if ui.button("Stop").on_hover_text("Stop reading").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); }
+                        },
 
                 // Selecting port and YLab version
                 // When both are selected, the connect button is shown
