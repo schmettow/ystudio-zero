@@ -12,12 +12,18 @@ be developed after its blueprint.
 
 *funded by WSV Innovation Funds University of Twente*
 
-# Installation
+# Installation 
 
-1. Install Rust: https://www.rust-lang.org/tools/install
-2. Install Cargo: https://doc.rust-lang.org/cargo/getting-started/installation.html
-3. Clone this repository using your favorite editor or the command line: `git clone
-4. Build and run the project: `cargo run --release`
+## Developer
+
+1. Install the Rust tool chain: https://rustup.rs/
+2. Clone this repository using your favorite editor or the command line: `git clone
+3. Build and run the project: `cargo run`
+
+## End User
+
+!coming_soon(): End user downloads for Windows, Mac and Linux.
+
 
 # Usage
 
@@ -28,11 +34,13 @@ be developed after its blueprint.
 5. Press the `Read` button
 6. Use the check boxes to select the channels you want to see
 
-# Todo
+# !todo()
 
++ Match the check boxes to line colors (and keep them fixed)
 + *Storage* is mostly implemented, but not yet functional on the GUI side. 
-+ Yldest should use a buffer to avoid high frequency disk writes.
-+ The central 
++ Use a buffer for Yldest to avoid high frequency disk writes.
++ The user navigation does not have a full path back (Stop -> Disconnect -> Connect -> Read)
++ Split the 
 
 
 # Technical details
