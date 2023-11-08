@@ -48,7 +48,7 @@ Ystudio Zero is compatible with all YLab Edge versions (Pro, Go, Mini). The YLab
 
 ## Data structure and formats
 
-Data from YLabs currently arrive as YLab Transport Format with 8 channels *YTF8* ("why-the-fight"). This format is designed to be very efficient for high-throughput applications, especially EEG. In Ystudio, the data is converted to YLab Long Data *YLD* ("wild") format, which is more convenient for plotting and storage. It has the following signature:
+Data from YLabs currently arrive as YLab Transport Format with 8 channels *YTF8* ("why-the-fate"). This format is designed to be very efficient for high-throughput applications, especially EEG. In Ystudio, the data is converted to YLab Long Data *YLD* ("wild") format, which is more convenient for plotting and storage. It has the following signature:
     
     ```rust
     pub struct Yld {
