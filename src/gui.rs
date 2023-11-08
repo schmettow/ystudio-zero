@@ -1,14 +1,13 @@
-use crate::ylab::{*, self};
-use crate::ylab::ydata::*;
+use crate::ylab::*;
+use crate::ylab::data::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
 use egui_plot::PlotPoints;
 
-extern crate csv;
-
 /// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 
+//pub fn egui_init(ystud: Ystudio) {
 pub fn egui_init(ystud: Ystudio) {
     let options = eframe::NativeOptions {
         transparent: true,
@@ -30,7 +29,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         // Split inconing history into points series
-        let incoming: egui::util::History<ydata::Yld> = ystud.yld_hist.lock().unwrap().clone();
+        let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
         let series = incoming.split();
         plot = plot
                 .auto_bounds_x()
@@ -81,10 +80,10 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         },
                 YLabState::Reading { start_time:_, version, port , recording:_}
-                    => {let yld_hist = ystud.yld_hist.lock().unwrap();
+                    => {let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port));
-                        let sample_rate: Option<f32> = yld_hist.mean_time_interval();
+                        let sample_rate: Option<f32> = yld_wind.mean_time_interval();
                         match sample_rate {
                             Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
                             None => {ui.heading("Reading");},
