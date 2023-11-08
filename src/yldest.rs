@@ -31,9 +31,9 @@ pub fn yldest_thread(
         let this_state = state.lock().unwrap().clone();
         let this_cmd = listen.try_recv().ok();
         let measure = incoming.try_recv().ok();
-        // match the current state and do the transitions
+        // match the current state, command and data stream to do transitions
         match (this_state, this_cmd, measure) {
-            // start recording
+            // start recording on command
             (YldestState::Idle, Some(YldestCmd::New { path }), _) 
                 => {
                 let file = fs::File::create(path.clone());
@@ -46,7 +46,7 @@ pub fn yldest_thread(
                     },
                 }
             },
-            // Do the recording
+            // do recording when new data arrived
             (YldestState::Recording{path}, _, Some(measure))
                 => {
                     let file = fs::File::open(&path);
@@ -58,13 +58,13 @@ pub fn yldest_thread(
                         },
                     }
                 },
-            // pause recording
+            // pause recording on command
             (YldestState::Recording{path}, Some(YldestCmd::Pause), _) 
                 => {
                     *state.lock().unwrap() = YldestState::Pausing{path};
                 },
 
-            // resume recording after pause
+            // resume recording on command after pause
             (YldestState::Pausing{path}, Some(YldestCmd::Resume), _) 
                 => {
                     let file = fs::File::open(&path);
@@ -77,7 +77,7 @@ pub fn yldest_thread(
                         },
                     }
                 },
-            // stop recording
+            // stop recording on command
             (YldestState::Recording{path}, Some(YldestCmd::Stop), _) 
                 => {
                     *state.lock().unwrap() = YldestState::Idle;

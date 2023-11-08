@@ -59,7 +59,7 @@ pub enum Recording {
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {start_time: Instant, version: YLabVersion, port: String},
-    Reading {start_time: Instant, version: YLabVersion, port: String, recording: Option<Recording> },
+    Reading {start_time: Instant, version: YLabVersion, port: String, recording: Option<Recording>},
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -103,9 +103,9 @@ pub fn ylab_thread(
             YLabState::Connected {  start_time, version, ref port} 
                 => {match this_cmd {
                     Some(YLabCmd::Read {}) 
-                        => {*ylab_state.lock().unwrap() = YLabState::Reading {version, start_time, port: port.to_string(), recording: None};},        
+                        => {*ylab_state.lock().unwrap() = YLabState::Reading {version, start_time, port: port.to_string(), recording:None};},        
                     _   => {},}},
-            YLabState::Reading {  start_time, version, ref port, recording} 
+            YLabState::Reading {  start_time, version, ref port, recording:_} 
                 => {let mut got_first_line: bool = false;
                     // In the previous state we've checked that the port works, so we can unwrap
                     let port 
@@ -138,7 +138,7 @@ pub fn ylab_thread(
                         }
                         let ystudio_time = (Instant::now() - start_time).as_secs_f64();
                         //let hist_len = yld_wind.lock().unwrap().len();
-                        println!("{}", sample.to_csv_line());
+                        //println!("{}", sample.to_csv_line());
                         //println!("{}: {} | {}", ystudio_time, sample.read[0], hist_len);
                         for measure in sample.to_yld(Duration::from_millis(ystudio_time as u64)).iter() {
                             yld_wind.lock().unwrap().add(ystudio_time, *measure);
@@ -245,10 +245,10 @@ pub mod data {
     pub use egui_plot::PlotPoints;
     //pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; N];
     /// Multi lines are a fixed array of vectors of points
-    pub type YldHistory = History<Yld>;
+    
     pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; 8];
 
-    pub fn new_multi_lines(hist: &YldHistory) -> MultiLines<8> {
+    pub fn new_multi_lines() -> MultiLines<8> {
         [vec!(), vec!(), vec!(), vec!(), vec!(), vec!(), vec!(), vec!()]
     }
 
@@ -260,7 +260,7 @@ pub mod data {
 
     impl SplitByChan for History<Yld>{
         fn split(&self) -> MultiLines<8> {
-            let mut out = new_multi_lines(&self);
+            let mut out = new_multi_lines();
             for measure in self.iter() {
                 let time = measure.0;
                 let chan = measure.1.chan as usize;
