@@ -1,17 +1,14 @@
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
-use crate::ylab::YLab;
-use crate::{measurements, ylab};
-use crate::app::Monitor;
+use crate::ylab::*;
+use crate::ylab::data::*;
+use crate::ystudio::Ystudio;
 use eframe::egui;
-use std::collections::HashMap;
-use std::fs;
-//use strum::IntoEnumIterator;
-
-extern crate csv;
+use egui_plot::PlotPoints;
 
 /// Initializing the ui window
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub fn egui_init(app: Monitor) {
+
+//pub fn egui_init(ystud: Ystudio) {
+pub fn egui_init(ystud: Ystudio) {
     let options = eframe::NativeOptions {
         transparent: true,
         initial_window_size: Some(egui::vec2(1000.0, 800.0)),
@@ -19,70 +16,176 @@ pub fn egui_init(app: Monitor) {
         ..Default::default()
     };
     eframe::run_native(
-        "Custom window frame", // unused title
+        "Ystudio Zero", // unused title
         options,
-        Box::new(|_cc| Box::new(app)),
+        Box::new(|_cc| Box::new(ystud)),
     ).unwrap();
 }
 
-/// updates the plotter
-/// 
-pub fn update_central_panel(ctx: &egui::Context, app: &mut Monitor) {
+
+/// updates the plotting area
+pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) 
+{
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
-        let y_include = app.y_include.lock().unwrap();
+        // Split inconing history into points series
+        let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
+        let series = incoming.split();
         plot = plot
-                .include_y(*y_include);
+                .auto_bounds_x()
+                .auto_bounds_y().
+                legend(egui_plot::Legend::default());
         let legend = egui_plot::Legend::default();
         plot = plot.legend(legend);
-
+        // Plot lines
         plot.show(ui, |plot_ui| {
-            for (_key, window) in &*app.measurements.lock().unwrap() {
-                //println!("{}:{}", key);
-                plot_ui.line(egui_plot::Line::new(window.plot_values()));
+            for (probe, points) in series.iter().enumerate() {
+                if ystud.ui.selected_channels.lock().unwrap()[probe] {
+                    let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
+                    plot_ui.line(line);
+                }
             }
         });
     });
 }
 
-pub fn update_right_panel(ctx: &egui::Context, app: &mut Monitor) {
+
+/// YLAB CONTROL in the right panel
+/// + Connecting and Disconnecting
+/// + Starting and stopping recodings
+/// 
+pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
+    // Pulling in in the global states
+    // all below need to be *dereferenced to be used
+    // In the future, we'll try to only use YLabState
+    //let mut this_ylab = ystud.ylab_version.lock().unwrap();
+    
+     // RIGHT PANEL
     egui::SidePanel::right("left_right_panel")
-        .show(ctx, 
-        |ui| {
-        let mut this_ylab = app.ylab_version.lock().unwrap();
-        egui::ComboBox::from_label("YLab version")
-            .selected_text(format!("{}", this_ylab))
-            .show_ui(ui, |ui| {
-                ui.radio_value(&mut *this_ylab, YLab::Pro, "Pro");
-                ui.radio_value(&mut *this_ylab, YLab::Go, "Go");
-                ui.radio_value(&mut *this_ylab, YLab::Mini, "Mini");});
-                ui.label(this_ylab.baud().to_string());
-        let mut serial_port = app.port.lock().unwrap();
-        // drop down
-        egui::ComboBox::from_label("Serial Port")
-            .selected_text(format!("{}", serial_port.to_owned()))
-            .show_ui(ui, |ui| {
-                for i in app.available_ports.lock().unwrap().iter() {
-                    ui.selectable_value(&mut *serial_port, 
-                                        i.to_string(), 
-                                        i.to_string());
+        .show(ctx,|ui| {
+            let ylab_state = ystud.ylab_state.lock().unwrap();
+            // setting defaults
+            let selected_version 
+                = match ystud.ui.selected_version.lock().unwrap().clone() {
+                    Some(version) => version,
+                    None => YLabVersion::Pro,};
+            
+            match ylab_state.clone() {
+                YLabState::Connected { start_time:_, version, port }
+                    => {ui.heading("Connected");
+                        ui.label(format!("{}:{}", version, port));
+                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        if ui.button("Stop").on_hover_text("Stop reading").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        },
+                YLabState::Reading { start_time:_, version, port , recording:_}
+                    => {let yld_wind = ystud.yld_wind.lock().unwrap();
+                        ui.heading("Reading");
+                        ui.label(format!("{}:{}", version, port));
+                        let sample_rate: Option<f32> = yld_wind.mean_time_interval();
+                        match sample_rate {
+                            Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
+                            None => {ui.heading("Reading");},
+                        }
+                        ui.heading("Channels");
+                        let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
+                        for (chan, b) in  selected_channels.clone().iter().enumerate(){
+                            let chan_selector = ui.checkbox(&mut b.clone(), chan.to_string());
+                            if chan_selector.changed() {
+                                selected_channels[chan] = !b;
+                            }
+                        }},
+
+                // Selecting port and YLab version
+                // When both are selected, the connect button is shown
+                YLabState::Disconnected {ports}
+                    => {ui.heading("Disconnected");              
+                        // When ports are available, show the options
+                        match ports {
+                            None => {ui.label("No ports available");
+                                    eprintln!("No ports available");},
+                            Some(ports) 
+                                => {
+                                // unpacking version and port
+                                let selected_port: Option<String> 
+                                    = match ystud.ui.selected_port.lock().unwrap().clone() {
+                                        // in case there is a user-selected port, use it
+                                        Some(port) => Some(port),
+                                        // otherwise use the first available port
+                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
+                                                else {None},
+                                    };
+                                // one selectable label for each port
+                                ui.label("Available Ports");
+                                for i in ports.iter() {
+                                    // Create a selectable label for each port
+                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), i.to_string())).clicked() { 
+                                        *ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
+                                    }
+                                };
+                                // one selectable per version
+                                ui.label("Version");
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
+                                    *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Pro);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
+                                  *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Go);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
+                                    *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Mini);
+                                }
+                                // The button is only shown when version and port are selected (which currently is by default).
+                                // It commits the connection command to the YLab thread.
+
+                                match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
+                                    (Some(version), Some(port)) 
+                                        =>  if ui.button("Connect")
+                                                .on_hover_text("Connect to YLab")
+                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port: port.to_string()}).unwrap();},
+                                        _ => {ui.label("Select port and version");}
+                                }
+                                // The button is only shown when both version and port are selected
+                                 
+                            } 
+                        }
+                    },
                 }
             });
-        });
+        }
+ 
+use egui_file::FileDialog;
 
-}
-            //let this_ylab = app.ylab_version.lock().unwrap();
-
-
-pub fn update_left_panel(ctx: &egui::Context, app: &mut Monitor) {
+pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
-            let disp = app.serial_data.lock().unwrap().to_owned();
-            let disp = disp
-                .into_iter()
-                .rev()
-                .take(50)
-                .rev()
-                .collect::<Vec<String>>();
-        ui.label(disp.join("\n"))});
+            ui.heading("Recording");
+            let ylab_state = ystud.ylab_state.lock().unwrap().clone();
+            match ylab_state {
+                YLabState::Reading { start_time:_, version:_, port:_ , recording}
+                => {match recording {
+                    Some(Recording::Raw {start_time, file}) 
+                    => {
+                        ui.heading("Recording");
+                        ui.label(format!("Raw: {}", file.display()));
+                        ui.label(format!("Started: {}", start_time.elapsed().as_secs()));
+                        if ui.button("Stop").on_hover_text("Stop recording").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}},
+                    Some(Recording::Yld {start_time:_, file}) 
+                    => {},
+                    Some(Recording::Paused {start_time:_, file}) 
+                    => {},
+                    None 
+                    => {
+                        let start_rec = ui.button("New Recording")
+                        .on_hover_text("Start a new recording");
+                        if start_rec.clicked() {
+                            let file = "test.csv";
+                        ystud.ylab_cmd.send(YLabCmd::Record{file: file.into()}).unwrap();}},
+                    }
+                },
+              _ => {},
+            }
+        });
     }
+

@@ -1,53 +1,83 @@
 mod gui;
-mod measurements;
-mod app;
-mod threads;
+mod yldest;
 mod ylab;
+mod ystudio;
 
-use std::thread;
-const N_HISTORY: usize = 1000;
+use ystudio::*;
+use ylab::ylab_thread;
+use yldest::yldest_thread;
+pub use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::{Arc, Mutex};
+
+
+/// Creating the channels and shared states for 
+/// thread-safe communication with YLab and Yldest
+/// 1. mutexed states
+/// 2. command channels, cmd goes to gui, listen goes to YLab/Yldest threads
+/// 3. a Yld channel for sending data from Ylab to to Yldest
+/// 4. a Yld History for sharing a sliding window with the GUI
 
 fn main() {
-    // initialize the app
-    let app = app::Monitor::new();
-    // make a copy of the measurements hash map
-    let measurements = app.measurements.clone();
+    // states
+    let ylab_state 
+        = Arc::new(Mutex::new(ylab::YLabState::Disconnected {ports: None}));
+    let yldest_state 
+        = Arc::new(Mutex::new(yldest::YldestState::Idle));
+    // command channels
+    let (ylab_cmd, ylab_listen) 
+        = channel();
+    let (yldest_cmd, yldest_listen) = channel();
+    // data channel for storage
+    let (yldest_send, yldest_rec) 
+        = channel();
+    // data sliding window for plotting
+    let yld_wind 
+        = Arc::new(Mutex::new(History::<Yld>::new(0..10_000,5.0)));
+    
+    let ystud = Ystudio {
+        ylab_state: ylab_state.clone(),
+        ylab_cmd,
+        yldest_state: yldest_state.clone(),
+        yldest_cmd,
+        yld_wind: yld_wind.clone(),
+        ui: Yui {
+            selected_port: Arc::new(Mutex::new(None)),
+            selected_version: Arc::new(Mutex::new(None)),
+            selected_channels: Arc::new(Mutex::new([false; 8])),
+        },
+    };
 
-    // Creating sliding windows for 8 channels
-    for chan_id in ylab::yld::CHAN_IDS {
-        // open the thread-safe hashmap and add a channel
-        measurements
-        .lock()
-        .unwrap()
-        .insert(chan_id.into(),
-            measurements::MeasurementWindow::new_with_look_behind(N_HISTORY));
-        println!("Creating window for {}", chan_id);
-    }
-
-    // Alternative implementation for sliding windows using egui History
-    let history = app.history.clone();
-
-    // this is all needed by the serial thread
-    let port = app.port.clone();
-    let available_ports = app.available_ports.clone();
-    let serial_data = app.serial_data.clone();
-    let this_ylab = app.ylab_version.clone();
-    let connected = app.connected.clone();
-
-    // starting the serial listener thread, 
-    // consuming all mutexes
+    // The ystudio object contains three coponents in a thread safe manner
+    // + ylab_state, which is a mutexed YLabState
+    // + yld_wind, which is a egui History of YLab Samples
+    // + ui, which captures UI related variables
+    // let ystudio_1 = Ystudio::new(ylab_cmd, yldest_cmd);
+    // let ystudio_2 = ystudio_1.clone();
+    
+    // The thread to collect Ylab data is started
+    // consuming copies of ylab state, data and command listener
     thread::spawn(move || {
-        threads::serial_thread(
-            measurements,
-            this_ylab,
-            connected,  
-            history,
-            port,
-            available_ports,
-            serial_data,
+        ylab_thread(
+            ylab_state,
+            ylab_listen,
+            yld_wind,
+            yldest_send,
         );
     });
 
-    // starting the egui
-    gui::egui_init(app);
+
+    // Storage thread
+    thread::spawn(move || {
+        yldest_thread( 
+            yldest_state,
+            yldest_listen,
+            yldest_rec,
+        );
+    });
+
+    // starting the egui, consuming the ystudio object.
+    // The details of the GUI are in gui.rs.
+    // The below works, because Ystudio objects implement eframe::App.
+
+    gui::egui_init(ystud.clone());
 }
