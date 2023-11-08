@@ -95,18 +95,78 @@ pub fn ylab_thread(
     ) -> ! {
     
     loop {
-        // capture YLab state and incoming commands from the UI
+       // capture YLab state and incoming commands from the UI
         let this_ylab_state = ylab_state.lock().unwrap().clone();
         let this_cmd = ylab_listen.try_recv().ok();
         // match the current state and do the transitions
-        match this_ylab_state {
-            YLabState::Connected {  start_time, version, ref port} 
-                => {match this_cmd {
-                    Some(YLabCmd::Read {}) 
-                        => {*ylab_state.lock().unwrap() = YLabState::Reading {version, start_time, port: port.to_string(), recording:None};},        
-                    _   => {},}},
-            YLabState::Reading {  start_time, version, ref port, recording:_} 
-                => {let mut got_first_line: bool = false;
+
+        match (this_ylab_state, this_cmd){
+            // initit condition: no port selected
+            (YLabState::Disconnected { ports: None }, 
+             None) 
+            => {
+                let avail_ports = serialport::available_ports().ok();
+                match avail_ports {
+                    None => { 
+                        // no ports: try again in 500ms, no transition
+                        thread::sleep(Duration::from_millis(500));},
+                    Some(found) => {
+                        // ports found: transition to Disconnected with available ports
+                        let port_names 
+                            = found.iter().map(|p| p.clone().port_name)
+                                .collect::<Vec<String>>();
+                        // automatically proceed to Disconnected with available ports
+                        *ylab_state.lock().unwrap() = YLabState::Disconnected{
+                                                        ports: Some(port_names)};},}
+                },
+        
+            (YLabState::Disconnected { ports: Some(ports) }, 
+             Some(YLabCmd::Connect { version, port })) 
+            => { 
+                // We make one connection attempt to verify the port
+                // later we can add code for sending commands to the 
+                // YLab, e.g. which sensors of a bank to collect.
+                // If Rust holds its promise 
+                // the serial port is properly closed when going out of scope
+                let poss_port = 
+                    serialport::new(port.clone(),
+                        version.baud() as u32)
+                        .timeout(Duration::from_millis(1))
+                        .flow_control(serialport::FlowControl::Software)
+                        .open()
+                        .ok(); // ok() turns a Result into an Option
+                match poss_port {
+                    None => {eprintln!("connnection failed"); thread::sleep(Duration::from_millis(500))},
+                    Some(_) 
+                            // transition to Connected
+                        => {*ylab_state.lock().unwrap() = YLabState::Connected {
+                                                            start_time: Instant::now(),
+                                                            version: version, 
+                                                            port: port.clone()}}};
+                },
+
+            (YLabState::Connected {  start_time, version, ref port},
+            Some(YLabCmd::Read {})) 
+            // transit to Reading on Command
+            => {// Attempt coecting the serial port 
+                let poss_port = 
+                    serialport::new(port, version.baud() as u32)
+                    .timeout(Duration::from_millis(1))
+                    .flow_control(serialport::FlowControl::Software)
+                    .open();
+                match poss_port {
+                    Err(_) => { eprintln!("connnection failed"); 
+                                thread::sleep(Duration::from_millis(500))},
+                    Ok(_) => {*ylab_state.lock().unwrap() = YLabState::Reading {
+                                                            start_time: Instant::now(),
+                                                            version: version, 
+                                                            port: port.clone(),
+                                                            recording: None}}};
+                },
+
+            (YLabState::Reading { start_time, version, port, recording:_}, 
+            None) 
+                =>  {let mut got_first_line: bool = false;
                     // In the previous state we've checked that the port works, so we can unwrap
                     let port 
                         = serialport::new(port, version.baud() as u32)
@@ -133,70 +193,24 @@ pub fn ylab_thread(
                         // check if this is the first line
                         if !got_first_line {
                             let _lab_start_time = Duration::from_micros(sample.time as u64);
-                            // here we can dynamically infer the data format (YTF or YLD).
+                            // here we can detect data format
                             got_first_line = true
                         }
                         let ystudio_time = (Instant::now() - start_time).as_secs_f64();
-                        //let hist_len = yld_wind.lock().unwrap().len();
-                        //println!("{}", sample.to_csv_line());
-                        //println!("{}: {} | {}", ystudio_time, sample.read[0], hist_len);
+                        // pushing Yld to the data streams
                         for measure in sample.to_yld(Duration::from_millis(ystudio_time as u64)).iter() {
                             yld_wind.lock().unwrap().add(ystudio_time, *measure);
                             yldest.send(*measure).unwrap();
-                        }
-                        
-                        //println!("{}", sample.to_csv_line());
-                    
+                        }                    
                     }},
-
-            YLabState::Disconnected {ports: _} 
-                // read list of port names from serial
-                => {let avail_ports = serialport::available_ports().ok();
-                    
-                    match avail_ports {
-                        None => { 
-                            // no ports: try again in 500ms, no transition
-                            thread::sleep(Duration::from_millis(500));//},
-                            //ylab_state = YLabState::Disconnected{ports: AvailablePorts::None}},
-                            *ylab_state.lock().unwrap() = YLabState::Disconnected{ports: None};},
-                        Some(found) => {
-                            // ports found: transition to Disconnected with available ports
-                            let port_names 
-                                = found.iter().map(|p| p.clone().port_name)
-                                    .collect::<Vec<String>>();
-                            // State is updating itself by collecting available ports
-                            *ylab_state.lock().unwrap() = YLabState::Disconnected{ports: Some(port_names)};
-                            match this_cmd {
-                                Some(YLabCmd::Connect { version, port })
-                                => {// We make one connection attempt to verify the port
-                                    // later we can add code for sending commands to the 
-                                    // YLab, e.g. which sensors of a bank to collect.
-                                    // If Rust holds its promise 
-                                    // the serial port is properly closed when going out of scope
-                                    let poss_port = 
-                                        serialport::new(port.clone(),
-                                            version.baud() as u32)
-                                            .timeout(Duration::from_millis(1))
-                                            .flow_control(serialport::FlowControl::Software)
-                                            .open()
-                                            .ok(); // ok() turns a Result into an Option
-                                    match poss_port {
-                                        None => {thread::sleep(Duration::from_millis(10))},
-                                        Some(_) 
-                                            => {*ylab_state.lock().unwrap() = YLabState::Connected {start_time: Instant::now(),
-                                                                                version: version, 
-                                                                                port: port.clone()}}
-                                    };
-                                },
-                                _ => {},
-                            };
-                        }
-                    }
-                }
-            };
-        }
-    }
-
+            (YLabState::Reading { start_time, version, port, recording},
+            Some(YLabCmd::Pause {  })) 
+            => {
+                *ylab_state.lock().unwrap() = YLabState::Connected{start_time, version, port};
+            },	
+            (_,_)   => {},
+        }}}
+      
 
 /// YLab DATA
 
