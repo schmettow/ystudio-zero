@@ -9,3 +9,5 @@ from multiple sources simultaneously.
 
 Once Ystudio Zero is finished, more specialized applications can
 be developed after its blueprint.
+
+*funded by WSV Innovation Funds University of Twente*
