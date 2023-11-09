@@ -25,27 +25,32 @@ pub fn egui_init(ystud: Ystudio) {
 
 /// updates the plotting area
 pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) 
-{
-    egui::CentralPanel::default().show(ctx, |ui| {
+{   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
-        // Split inconing history into points series
-        let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
-        let series = incoming.split();
-        plot = plot
-                .auto_bounds_x()
-                .auto_bounds_y().
-                legend(egui_plot::Legend::default());
-        let legend = egui_plot::Legend::default();
-        plot = plot.legend(legend);
-        // Plot lines
-        plot.show(ui, |plot_ui| {
-            for (probe, points) in series.iter().enumerate() {
-                if ystud.ui.selected_channels.lock().unwrap()[probe] {
-                    let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
-                    plot_ui.line(line);
+        match ystud.ylab_state.lock().unwrap().clone() {
+            YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_} 
+            => {// Split inconing history into points series
+                let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
+                let series = incoming.split();
+                plot = plot
+                        .auto_bounds_x()
+                        .auto_bounds_y().
+                        legend(egui_plot::Legend::default());
+                let legend = egui_plot::Legend::default();
+                plot = plot.legend(legend);
+                // Plot lines
+                plot.show(ui, |plot_ui| {
+                for (probe, points) in series.iter().enumerate() {
+                    if ystud.ui.selected_channels.lock().unwrap()[probe] {
+                        let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
+                        plot_ui.line(line);
+                    }
                 }
-            }
         });
+            },
+            _ => {},
+        }
+        
     });
 }
 
@@ -71,18 +76,18 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     None => YLabVersion::Pro,};
             
             match ylab_state.clone() {
-                YLabState::Connected { start_time:_, version, port }
+                YLabState::Connected { start_time:_, version, port_name }
                     => {ui.heading("Connected");
-                        ui.label(format!("{}:{}", version, port));
+                        ui.label(format!("{}:{}", version, port_name));
                         if ui.button("Read").on_hover_text("Read from YLab").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
                         },
-                YLabState::Reading { start_time:_, version, port , recording:_}
+                YLabState::Reading { start_time:_, version, port_name , recording:_}
                     => {let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
-                        ui.label(format!("{}:{}", version, port));
+                        ui.label(format!("{}:{}", version, port_name));
 
                         let sample_rate: Option<f32> = yld_wind.mean_time_interval();
                         match sample_rate {
@@ -99,7 +104,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             }
                         };
                         if ui.button("Stop").on_hover_text("Stop reading").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); }
+                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
+                            println!("Cmd: Stop")};
                         },
 
                 // Selecting port and YLab version
@@ -147,7 +153,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     (Some(version), Some(port)) 
                                         =>  if ui.button("Connect")
                                                 .on_hover_text("Connect to YLab")
-                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port: port.to_string()}).unwrap();},
+                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();},
                                         _ => {ui.label("Select port and version");}
                                 }
                                 // The button is only shown when both version and port are selected
@@ -167,7 +173,7 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             ui.heading("Recording");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
             match ylab_state {
-                YLabState::Reading { start_time:_, version:_, port:_ , recording}
+                YLabState::Reading { start_time:_, version:_, port_name:_ , recording}
                 => {match recording {
                     Some(Recording::Raw {start_time, file}) 
                     => {
