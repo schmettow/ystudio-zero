@@ -9,6 +9,8 @@ use yldest::yldest_thread;
 pub use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex};
 
+use log::{info, warn, debug, error};
+
 
 /// Creating the channels and shared states for 
 /// thread-safe communication with YLab and Yldest
