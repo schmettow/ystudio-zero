@@ -6,7 +6,9 @@
 pub use std::fmt;
 pub use std::time::Instant;
 pub use std::path::PathBuf;
-use serialport;
+use log::{info, warn};
+
+
 
 //use egui::epaint::tessellator::Path;
 //use serialport::SerialPort;
@@ -37,17 +39,12 @@ impl fmt::Display for YLabVersion {
     }
 }
 
-/// Optional list of serial port names
-pub type AvailablePorts = Option<Vec<String>>;
 
-/// YLab State
+/// YLab States and Commands
 /// 
-/// provides the states of YLab devices
-/// Connect and Read actually are for sending commands to the YLab. 
-/// That's the flexibility of a mutex, it is bidirectional.
-/// A cleaner way would be to use separate types for 
-/// commands and states, use signals for commands and channels for data.
-/// Similar to how it is done in YLab-Edge.
+/// provides the states and control commands of YLab devices
+/// YLab states are organized hierarchically to make it
+/// easier to pass on objects.
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Recording {
@@ -57,18 +54,32 @@ pub enum Recording {
 }
 
 
+/*#[derive(PartialEq, Debug, Clone)]
+pub enum Yops { // YLab operational status
+    Idle(),
+    Reading {},
+    Recording {file: PathBuf},
+}*/
+
+use serialport;
+use std::io::{BufReader,BufRead};
+pub type LockedSerial = Arc<Mutex<Option<Box<dyn serialport::SerialPort + 'static>>>>;
+pub type LockedBufReader = Arc<Mutex<Option<BufReader<Box<dyn serialport::SerialPort + 'static>>>>>;
+
+/// YLab state
+/// Optional list of serial port names
+pub type AvailablePorts = Option<Vec<String>>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
-    Connected {start_time: Instant, version: YLabVersion, port: String},
-    Reading {start_time: Instant, version: YLabVersion, port: String, 
-        recording: Option<Recording>},
+    Connected {start_time: Instant, version: YLabVersion, port_name: String},
+    Reading {start_time: Instant, version: YLabVersion, port_name: String, recording: Option<Recording>},
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabCmd {
     Disconnect,
-    Connect {version: YLabVersion, port: String},
+    Connect {version: YLabVersion, port_name: String},
     Read {},
     Stop {},
     Record {file: PathBuf},
@@ -77,12 +88,14 @@ pub enum YLabCmd {
 
 /// YLab thread
 
-use serialport;
-use std::io::{BufReader,BufRead};
+
 use std::sync::*;
 use std::thread;
 use std::time::Duration;
 use egui::emath::History;
+
+use crate::ystudio;
+use crate::ystudio::Ystudio;
 
 /// Task for reading data from serial port
 /// 
@@ -90,19 +103,22 @@ use egui::emath::History;
 /// yld_wind is used for storing data
 /// ylab_listen is used for listening to commands
 /// 
+
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>,
     ylab_listen: mpsc::Receiver<YLabCmd>,
     yld_wind: Arc<Mutex<History<data::Yld>>>,
-    yldest: mpsc::Sender<data::Yld>,
+    yld_st: mpsc::Sender<data::Yld>,
     ) -> ! {
     
+    let serialport: LockedSerial = Arc::new(Mutex::new(None));
+    let bufreader: LockedBufReader = Arc::new(Mutex::new(None));
+
     loop {
        // capture YLab state and incoming commands from the UI
         let this_ylab_state = ylab_state.lock().unwrap().clone();
         let this_cmd = ylab_listen.try_recv().ok();
         // match the current state and do the transitions
-
         match (this_ylab_state, this_cmd){
             // initit condition: no port selected
             (YLabState::Disconnected { ports: None }, 
@@ -124,7 +140,7 @@ pub fn ylab_thread(
                 },
         
             (YLabState::Disconnected { ports: Some(ports) }, 
-             Some(YLabCmd::Connect { version, port })) 
+             Some(YLabCmd::Connect { version, port_name })) 
             => { 
                 // We make one connection attempt to verify the port
                 // later we can add code for sending commands to the 
@@ -132,85 +148,92 @@ pub fn ylab_thread(
                 // If Rust holds its promise 
                 // the serial port is properly closed when going out of scope
                 let poss_port = 
-                    serialport::new(port.clone(),
+                    serialport::new(port_name.clone(),
                         version.baud() as u32)
                         .timeout(Duration::from_millis(1))
                         .flow_control(serialport::FlowControl::Software)
-                        .open()
-                        .ok(); // ok() turns a Result into an Option
+                        .open(); // ok() turns a Result into an Option
                 match poss_port {
-                    None => {eprintln!("connnection failed"); thread::sleep(Duration::from_millis(500))},
-                    Some(_) 
+                    Err(_) => {eprintln!("connection failed"); thread::sleep(Duration::from_millis(500))},
+                    Ok(real_port)    
+                        => {*serialport.lock().unwrap() = Some(real_port);
+                            //let _ = serialport.lock().unwrap().take(); // take immediatly, just for testing*/
                             // transition to Connected
-                        => {*ylab_state.lock().unwrap() = YLabState::Connected {
+                            *ylab_state.lock().unwrap() = YLabState::Connected {
                                                             start_time: Instant::now(),
                                                             version: version, 
-                                                            port: port.clone()}}};
+                                                            port_name: port_name.clone()};},
+                    };
+                println!("Connected to {}", port_name.clone());
+                },
+                
+            // Start reading on command
+            (YLabState::Connected {  start_time, version, ref port_name},
+            Some(YLabCmd::Read {})) 
+            => {*bufreader.lock().unwrap() 
+                    = Some(BufReader::new(serialport.lock().unwrap().take().unwrap()));
+                *ylab_state.lock().unwrap() = YLabState::Reading {
+                    start_time: Instant::now(),
+                    version: version, 
+                    port_name: port_name.clone(),
+                    recording: None}
                 },
 
-            (YLabState::Connected {  start_time, version, ref port},
-            Some(YLabCmd::Read {})) 
-            // transit to Reading on Command
-            => {// Attempt coecting the serial port 
-                let poss_port = 
-                    serialport::new(port, version.baud() as u32)
-                    .timeout(Duration::from_millis(1))
-                    .flow_control(serialport::FlowControl::Software)
-                    .open();
-                match poss_port {
-                    Err(_) => { eprintln!("connnection failed"); 
-                                    thread::sleep(Duration::from_millis(500))},
-                    Ok(_) => {*ylab_state.lock().unwrap() = YLabState::Reading {
-                                                        start_time: Instant::now(),
-                                                        version: version, 
-                                                        port: port.clone(),
-                                                        recording: None}}};
-                },
+                        
+                        
             
-            (YLabState::Reading { start_time, version, port, recording:_}, 
+            (YLabState::Reading { start_time, version, port_name, recording:_}, 
             None) 
-                =>  {let mut got_first_line: bool = false;
-                    // In the previous state we've checked that the port works, so we can unwrap
-                    let port 
-                        = serialport::new(port, version.baud() as u32)
-                            .timeout(Duration::from_millis(1))
-                            .flow_control(serialport::FlowControl::Software)
-                            .open()
-                            .unwrap();
-                    let reader = BufReader::new(port);
-                    
-                    for line in reader.lines() {
-                        // ignore faulty lines
-                        if line.is_err() {continue;};
-                        // get the line
-                        let line = line.unwrap();
-                        // try parsing a sample from line
-                                                let possible_sample 
-                            = data::Ytf8::from_csv_line(&line);
-                        // print a dot when sample not valid
-                        if possible_sample.is_err() {
-                            //eprintln!(".");
-                            continue;}
-                        // collect sample
-                        let sample = possible_sample.unwrap().to_unit();
-                        // check if this is the first line
-                        if !got_first_line {
-                            let _lab_start_time = Duration::from_micros(sample.time as u64);
-                            // here we can detect data format
-                            got_first_line = true
-                        }
-                        let ystudio_time = (Instant::now() - start_time).as_secs_f64();
-                        // pushing Yld to the data streams
-                        for measure in sample.to_yld(Duration::from_millis(ystudio_time as u64)).iter() {
-                            yld_wind.lock().unwrap().add(ystudio_time, *measure);
-                            yldest.send(*measure).unwrap();
-                        }                    
-                    }},
-            (YLabState::Reading { start_time, version, port, recording},
-            Some(YLabCmd::Pause {  })) 
-            => {
-                *ylab_state.lock().unwrap() = YLabState::Connected{start_time, version, port};
-            },	
+                // We are already in a fast loop, so we read one line at a time.
+                =>  {let mut reader = bufreader.lock().unwrap();
+                    match reader.as_mut().unwrap().lines().next(){
+                        // buffer empty
+                        None => {continue},
+                        // line found
+                        Some(line)
+                            => match line {
+                                // conversion error
+                                Err(_) => {continue},
+                                // conversion success
+                                Ok(line) => {
+                                    // parse line into Ytf8
+                                    match data::Ytf8::from_csv_line(&line) {
+                                        // not a Ytf8 line
+                                        Err(_) => {continue}
+                                        // Ytf8 line,
+                                        Ok(sample) => {
+                                            let ystudio_time = Instant::now() - start_time;
+                                            let yld = sample.to_yld(ystudio_time);
+                                            for measure in yld.iter() {
+                                                yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
+                                                yld_st.send(measure.clone()).unwrap();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                    }
+                },
+                        
+
+                   
+            (YLabState::Reading { start_time, version, port_name, recording},
+            Some(YLabCmd::Stop {  })) 
+            => {*ylab_state.lock().unwrap() = YLabState::Connected{start_time, version, port_name};//YLabState::Disconnected{ports: None};
+                let this_serial = bufreader.lock().unwrap().take().unwrap().into_inner();
+                *serialport.lock().unwrap() = Some(this_serial); // It has been taken, so we put it back
+                *bufreader.lock().unwrap() = None;
+                println!("Stopped reading");
+                },
+            // Disconnect on command
+            (YLabState::Connected{ start_time:_, version:_, port_name:_},
+                Some(YLabCmd::Disconnect{})) 
+                => {
+                    *ylab_state.lock().unwrap() = YLabState::Disconnected { ports: None };
+                    *bufreader.lock().unwrap() = None;
+                    *serialport.lock().unwrap() = None;
+                    println!("Disconnected");
+                },	
             (_,_)   => {},
         }}}
       
