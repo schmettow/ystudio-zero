@@ -41,6 +41,8 @@ pub struct Yui {
     pub selected_port: Arc<Mutex<Option<String>>>,
     pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
     pub selected_channels: Arc<Mutex<[bool; 8]>>,
+    //opened_file: Option<PathBuf>,
+    //open_file_dialog: Option<FileDialog>,
 }
 
 
