@@ -1,4 +1,4 @@
-use crate::ylab::*;
+use crate::{ylab::*, yldest::*};
 use crate::ylab::data::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
@@ -76,6 +76,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     None => YLabVersion::Pro,};
             
             match ylab_state.clone() {
+
+                // Connected to YLab by selecting port and version
                 YLabState::Connected { start_time:_, version, port_name }
                     => {ui.heading("Connected");
                         ui.label(format!("{}:{}", version, port_name));
@@ -84,6 +86,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
                         },
+                
+                // Reading from YLab, showing the port, version and sample rate
                 YLabState::Reading { start_time:_, version, port_name , recording:_}
                     => {let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
@@ -92,9 +96,9 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         let sample_rate: Option<f32> = yld_wind.mean_time_interval();
                         match sample_rate {
                             Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
-                            None => {ui.heading("Reading");},
+                            None => {ui.label("still buffering");},
                         }
-
+                        // Selecting channels to plot
                         ui.heading("Channels");
                         let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
                         for (chan, b) in  selected_channels.clone().iter().enumerate(){
@@ -103,6 +107,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 selected_channels[chan] = !b;
                             }
                         };
+                        // Stop reading
                         if ui.button("Stop").on_hover_text("Stop reading").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
                             println!("Cmd: Stop")};
@@ -148,7 +153,6 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 }
                                 // The button is only shown when version and port are selected (which currently is by default).
                                 // It commits the connection command to the YLab thread.
-
                                 match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
                                     (Some(version), Some(port)) 
                                         =>  if ui.button("Connect")
@@ -156,7 +160,6 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                                 .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();},
                                         _ => {ui.label("Select port and version");}
                                 }
-                                // The button is only shown when both version and port are selected
                                  
                             } 
                         }
@@ -172,31 +175,28 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
         .show(ctx, |ui| {
             ui.heading("Recording");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
-            match ylab_state {
-                YLabState::Reading { start_time:_, version:_, port_name:_ , recording}
-                => {match recording {
-                    Some(Recording::Raw {start_time, file}) 
+            let yldest_state = ystud.yldest_state.lock().unwrap().clone();
+            
+            match (ylab_state, yldest_state) {
+                // show New button when Reading and Idle
+                (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
+                    YldestState::Idle {}) 
                     => {
-                        ui.heading("Recording");
-                        ui.label(format!("Raw: {}", file.display()));
-                        ui.label(format!("Started: {}", start_time.elapsed().as_secs()));
-                        if ui.button("Stop").on_hover_text("Stop recording").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}},
-                    Some(Recording::Yld {start_time:_, file}) 
-                    => {},
-                    Some(Recording::Paused {start_time:_, file}) 
-                    => {},
-                    None 
-                    => {
-                        let start_rec = ui.button("New Recording")
-                        .on_hover_text("Start a new recording");
-                        if start_rec.clicked() {
-                            let file = "test.csv";
-                        ystud.ylab_cmd.send(YLabCmd::Record{file: file.into()}).unwrap();}},
-                    }
-                },
-              _ => {},
+                        ui.label("Idle");
+                        if ui.button("New Recording").on_hover_text("Start a new recording").clicked() {
+                            let path = std::env::current_dir().unwrap().join("test.csv");
+                            ystud.yldest_cmd.send(YldestCmd::New {path}).unwrap()
+                            }},
+                // show path and stop button when recording
+                (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
+                YldestState::Recording {path}) 
+                => {
+                   ui.label(format!("Recording to {}", path.to_str().unwrap()));
+                   if ui.button("Stop").on_hover_text("Stop recording").clicked() {
+                        ystud.yldest_cmd.send(YldestCmd::Stop).unwrap();}},
+                (_,_) => {},
             }
-        });
-    }
+        }
+    );
+}
 
