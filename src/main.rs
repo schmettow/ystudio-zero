@@ -24,7 +24,7 @@ fn main() {
     let ylab_state 
         = Arc::new(Mutex::new(ylab::YLabState::Disconnected {ports: None}));
     let yldest_state 
-        = Arc::new(Mutex::new(yldest::YldestState::Idle));
+        = Arc::new(Mutex::new(yldest::YldestState::Idle{dir: std::env::current_dir().ok()}));
     // command channels
     let (ylab_cmd, ylab_listen) 
         = channel();

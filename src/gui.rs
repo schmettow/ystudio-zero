@@ -180,13 +180,13 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             match (ylab_state, yldest_state) {
                 // show New button when Reading and Idle
                 (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
-                    YldestState::Idle {}) 
+                    YldestState::Idle {dir: Some(path)})
                     => {
                         ui.label("Idle");
                         if ui.button("New Recording").on_hover_text("Start a new recording").clicked() {
-                            let path = std::env::current_dir().unwrap().join("test.csv");
-                            ystud.yldest_cmd.send(YldestCmd::New {path}).unwrap()
-                            }},
+                            let dir = std::env::current_dir().unwrap();
+                            ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
+                        }},
                 // show path and stop button when recording
                 (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
                 YldestState::Recording {path}) 
