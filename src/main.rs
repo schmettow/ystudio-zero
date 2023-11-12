@@ -1,4 +1,4 @@
-mod gui;
+mod yui;
 mod yldest;
 mod ylab;
 mod ystudio;
@@ -82,5 +82,5 @@ fn main() {
     // The details of the GUI are in gui.rs.
     // The below works, because Ystudio objects implement eframe::App.
 
-    gui::egui_init(ystud.clone());
+    yui::egui_init(ystud.clone());
 }

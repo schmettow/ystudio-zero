@@ -8,7 +8,7 @@ pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, data::*};
 
 //use crate::ylab::AvailablePorts;
 
-pub use crate::gui::*;
+pub use crate::yui::*;
 pub use crate::ylab::*;
 pub use crate::yldest::*;
 
