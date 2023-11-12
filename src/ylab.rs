@@ -6,6 +6,7 @@
 pub use std::fmt;
 pub use std::time::Instant;
 pub use std::path::PathBuf;
+#[allow(unused_imports)]
 use log::{info, warn};
 
 
@@ -45,6 +46,7 @@ impl fmt::Display for YLabVersion {
 /// provides the states and control commands of YLab devices
 /// YLab states are organized hierarchically to make it
 /// easier to pass on objects.
+
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Recording {
@@ -94,8 +96,6 @@ use std::thread;
 use std::time::Duration;
 use egui::emath::History;
 
-use crate::ystudio;
-use crate::ystudio::Ystudio;
 
 /// Task for reading data from serial port
 /// 
@@ -157,7 +157,7 @@ pub fn ylab_thread(
                     Err(_) => {eprintln!("connection failed"); thread::sleep(Duration::from_millis(500))},
                     Ok(real_port)    
                         => {*serialport.lock().unwrap() = Some(real_port);
-                            //let _ = serialport.lock().unwrap().take(); // take immediatly, just for testing*/
+ 
                             // transition to Connected
                             *ylab_state.lock().unwrap() = YLabState::Connected {
                                                             start_time: Instant::now(),
@@ -203,7 +203,7 @@ pub fn ylab_thread(
                                         // Ytf8 line,
                                         Ok(sample) => {
                                             let ystudio_time = Instant::now() - start_time;
-                                            let yld = sample.to_yld(ystudio_time);
+                                            let yld = sample.to_unit().to_yld(ystudio_time);
                                             for measure in yld.iter() {
                                                 yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
                                                 yld_st.send(measure.clone()).unwrap();
@@ -242,19 +242,17 @@ pub fn ylab_thread(
 
 pub mod data {
     pub use std::error::Error;
-    use std::{time::Duration};
-
+    use std::time::Duration;
+    
     use egui::util::History;
     /// YLab Long Data
     /// 
-    /// YLD keeps data one row per measure with 
+    /// YLD keeps data one row per measure with
     /// + a time stamp, 
     /// + a device identifier 
     /// + a sensory index (position in the bank)
-    /// a value
-
-    pub const YLD_HEAD: &str = "time,dev,sensory,chan,value\r\n";
-
+    /// + one measurement value
+    /// 
     #[derive(Copy, Clone, Debug)]
     pub struct Yld {
         pub time: Duration,
@@ -283,9 +281,8 @@ pub mod data {
 
     pub type _YldBuf = Vec<Yld>;
     pub use egui_plot::PlotPoints;
-    //pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; N];
-    /// Multi lines are a fixed array of vectors of points
     
+    /// Multi lines are a fixed array of vectors of xy points.
     pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; 8];
 
     pub fn new_multi_lines() -> MultiLines<8> {
@@ -388,7 +385,7 @@ pub mod data {
                         read: read})
         }
 
-
+        #[allow(dead_code)]
         pub fn to_csv_line(&self) -> String {
             let out: String = 
                 [[self.time.to_string(), self.dev.to_string()]
