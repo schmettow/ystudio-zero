@@ -112,6 +112,7 @@ pub fn ylab_thread(
     
     let serialport: LockedSerial = Arc::new(Mutex::new(None));
     let bufreader: LockedBufReader = Arc::new(Mutex::new(None));
+    let start_time = Instant::now();
 
     loop {
        // capture YLab state and incoming commands from the UI
@@ -197,11 +198,7 @@ pub fn ylab_thread(
                                         Err(_) => {continue}
                                         // Ytf8 line,
                                         Ok(sample) => {
-                                            let ystudio_time = match std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH) {
-                                                Ok(unixsecs) => Duration::from_secs(unixsecs.as_secs() - 1699743807),
-                                                Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-                                            };
-                                            
+                                            let ystudio_time =Instant::now().duration_since(start_time);
                                             let yld = sample.to_unit().to_yld(ystudio_time);
                                             for measure in yld.iter() {
                                                 yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
