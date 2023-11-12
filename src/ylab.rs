@@ -47,14 +47,14 @@ impl fmt::Display for YLabVersion {
 /// YLab states are organized hierarchically to make it
 /// easier to pass on objects.
 
-
+/*
 #[derive(PartialEq, Debug, Clone)]
 pub enum Recording {
     Raw {start_time: Instant, file: PathBuf},
     Yld {start_time: Instant, file: PathBuf},
     Paused {start_time: Instant, file: PathBuf},
 }
-
+*/
 
 /*#[derive(PartialEq, Debug, Clone)]
 pub enum Yops { // YLab operational status
@@ -74,8 +74,8 @@ pub type AvailablePorts = Option<Vec<String>>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
-    Connected {start_time: Instant, version: YLabVersion, port_name: String},
-    Reading {start_time: Instant, version: YLabVersion, port_name: String, recording: Option<Recording>},
+    Connected {version: YLabVersion, port_name: String},
+    Reading {version: YLabVersion, port_name: String},
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -83,8 +83,7 @@ pub enum YLabCmd {
     Disconnect,
     Connect {version: YLabVersion, port_name: String},
     Read {},
-    Stop {},
-    Record {file: PathBuf},
+    Stop {}
 }
 
 
@@ -139,7 +138,7 @@ pub fn ylab_thread(
                                                         ports: Some(port_names)};},}
                 },
         
-            (YLabState::Disconnected { ports: Some(ports) }, 
+            (YLabState::Disconnected { ports: Some(_) }, 
              Some(YLabCmd::Connect { version, port_name })) 
             => { 
                 // We make one connection attempt to verify the port
@@ -160,7 +159,6 @@ pub fn ylab_thread(
  
                             // transition to Connected
                             *ylab_state.lock().unwrap() = YLabState::Connected {
-                                                            start_time: Instant::now(),
                                                             version: version, 
                                                             port_name: port_name.clone()};},
                     };
@@ -168,21 +166,18 @@ pub fn ylab_thread(
                 },
                 
             // Start reading on command
-            (YLabState::Connected {  start_time, version, ref port_name},
+            (YLabState::Connected {version, ref port_name},
             Some(YLabCmd::Read {})) 
             => {*bufreader.lock().unwrap() 
                     = Some(BufReader::new(serialport.lock().unwrap().take().unwrap()));
-                *ylab_state.lock().unwrap() = YLabState::Reading {
-                    start_time: Instant::now(),
-                    version: version, 
-                    port_name: port_name.clone(),
-                    recording: None}
+                *ylab_state.lock().unwrap() = YLabState::Reading {version: version.clone(),
+                    port_name: port_name.clone()}
                 },
 
                         
                         
             
-            (YLabState::Reading { start_time, version, port_name, recording:_}, 
+            (YLabState::Reading {version:_, port_name:_, }, 
             None) 
                 // We are already in a fast loop, so we read one line at a time.
                 =>  {let mut reader = bufreader.lock().unwrap();
@@ -202,31 +197,35 @@ pub fn ylab_thread(
                                         Err(_) => {continue}
                                         // Ytf8 line,
                                         Ok(sample) => {
-                                            let ystudio_time = Instant::now() - start_time;
+                                            let ystudio_time = match std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH) {
+                                                Ok(unixsecs) => Duration::from_secs(unixsecs.as_secs() - 1699743807),
+                                                Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+                                            };
+                                            
                                             let yld = sample.to_unit().to_yld(ystudio_time);
                                             for measure in yld.iter() {
                                                 yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
                                                 yld_st.send(measure.clone()).unwrap();
-                                            }
+                                            }}
                                         }
                                     }
                                 }
                             }
-                    }
-                },
+                    },
+                
                         
 
                    
-            (YLabState::Reading { start_time, version, port_name, recording},
+            (YLabState::Reading {version, port_name},
             Some(YLabCmd::Stop {  })) 
-            => {*ylab_state.lock().unwrap() = YLabState::Connected{start_time, version, port_name};//YLabState::Disconnected{ports: None};
+            => {*ylab_state.lock().unwrap() = YLabState::Connected{version, port_name};//YLabState::Disconnected{ports: None};
                 let this_serial = bufreader.lock().unwrap().take().unwrap().into_inner();
                 *serialport.lock().unwrap() = Some(this_serial); // It has been taken, so we put it back
                 *bufreader.lock().unwrap() = None;
                 println!("Stopped reading");
                 },
             // Disconnect on command
-            (YLabState::Connected{ start_time:_, version:_, port_name:_},
+            (YLabState::Connected{version:_, port_name:_},
                 Some(YLabCmd::Disconnect{})) 
                 => {
                     *ylab_state.lock().unwrap() = YLabState::Disconnected { ports: None };

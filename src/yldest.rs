@@ -1,5 +1,4 @@
 
-use crate::ylab::*;
 use crate::ylab::data::*;
 use std::io::Write;
 use std::sync::*;
@@ -12,6 +11,7 @@ pub enum YldestState {
     Connected {path:PathBuf},
     Recording {path: PathBuf}}
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum YldestCmd {
     New {change_dir: Option<PathBuf>, file_name: Option<PathBuf>},
@@ -97,7 +97,7 @@ pub fn yldest_thread(
             => {*state.lock().unwrap() = YldestState::Recording {path: path.clone()}},  
 
             // do recording when new data arrived
-            (YldestState::Recording{path}, 
+            (YldestState::Recording{path:_}, 
             _, 
             Some(measure))
             => {
@@ -118,7 +118,7 @@ pub fn yldest_thread(
             },
 
             // stop recording on command, keep path
-            (YldestState::Recording{path}, Some(YldestCmd::Stop), _) 
+            (YldestState::Recording{path:_}, Some(YldestCmd::Stop), _) 
                 => {
                     *state.lock().unwrap() = YldestState::Idle{dir: locked_dir.lock().unwrap().clone()};
                 },

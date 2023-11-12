@@ -9,6 +9,7 @@ use yldest::yldest_thread;
 pub use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex};
 
+#[allow(unused_imports)]
 use log::{info, warn, debug, error};
 
 

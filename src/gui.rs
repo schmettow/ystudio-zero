@@ -28,7 +28,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
 {   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         match ystud.ylab_state.lock().unwrap().clone() {
-            YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_} 
+            YLabState::Reading {version: _, port_name: _} 
             => {// Split inconing history into points series
                 let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
                 let series = incoming.split();
@@ -71,7 +71,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             match ylab_state.clone() {
 
                 // Connected to YLab by selecting port and version
-                YLabState::Connected { start_time:_, version, port_name }
+                YLabState::Connected {version, port_name}
                     => {ui.heading("Connected");
                         ui.label(format!("{}:{}", version, port_name));
                         if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
@@ -81,7 +81,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         },
                 
                 // Reading from YLab, showing the port, version and sample rate
-                YLabState::Reading { start_time:_, version, port_name , recording:_}
+                YLabState::Reading {version, port_name}
                     => {let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
@@ -160,7 +160,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 }
             });
         }
- 
+
+#[allow(unused_imports)]
 use egui_file::FileDialog;
 
 pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
@@ -172,8 +173,8 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             
             match (ylab_state, yldest_state) {
                 // show New button when Reading and Idle
-                (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
-                    YldestState::Idle {dir: Some(path)})
+                (YLabState::Reading {version:_, port_name:_},
+                    YldestState::Idle {dir: Some(_)})
                     => {
                         ui.label("Idle");
                         if ui.button("New Recording").on_hover_text("Start a new recording").clicked() {
@@ -181,7 +182,7 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
                         }},
                 // show path and stop button when recording
-                (YLabState::Reading { start_time:_, version:_, port_name:_ , recording:_},
+                (YLabState::Reading {version:_, port_name:_},
                 YldestState::Recording {path}) 
                 => {
                    ui.label(format!("Recording to {}", path.to_str().unwrap()));
