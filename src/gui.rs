@@ -56,16 +56,9 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
 
 
 /// YLAB CONTROL in the right panel
-/// + Connecting and Disconnecting
-/// + Starting and stopping recodings
-/// 
+/// + Connecting; reading and disconnecting
+///
 pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
-    // Pulling in in the global states
-    // all below need to be *dereferenced to be used
-    // In the future, we'll try to only use YLabState
-    //let mut this_ylab = ystud.ylab_version.lock().unwrap();
-    
-     // RIGHT PANEL
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
             let ylab_state = ystud.ylab_state.lock().unwrap();
@@ -81,10 +74,10 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 YLabState::Connected { start_time:_, version, port_name }
                     => {ui.heading("Connected");
                         ui.label(format!("{}:{}", version, port_name));
-                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
+                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
                         },
                 
                 // Reading from YLab, showing the port, version and sample rate
