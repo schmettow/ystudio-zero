@@ -161,9 +161,10 @@ pub fn ylab_thread(
                             // transition to Connected
                             *ylab_state.lock().unwrap() = YLabState::Connected {
                                                             version: version, 
-                                                            port_name: port_name.clone()};},
+                                                            port_name: port_name.clone()};
+                            println!("Connected to {}", port_name.clone());},
+                            
                     };
-                println!("Connected to {}", port_name.clone());
                 },
                 
             // Start reading on command
