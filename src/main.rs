@@ -16,7 +16,7 @@ use log::{info, warn, debug, error};
 /// Creating the channels and shared states for 
 /// thread-safe communication with YLab and Yldest
 /// 1. mutexed states
-/// 2. command channels, cmd goes to gui, listen goes to YLab/Yldest threads
+/// 2. command channels, cmd i used in gui, YLab/Yldest threads are listening
 /// 3. a Yld channel for sending data from Ylab to to Yldest
 /// 4. a Yld History for sharing a sliding window with the GUI
 
