@@ -1,4 +1,4 @@
-use crate::{ylab::*, yldest::*};
+use crate::{ylab::*, yldest::{*, self}};
 use crate::ylab::data::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
@@ -101,10 +101,29 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             }
                         };
                         // Stop reading
-                        if ui.button("Stop").on_hover_text("Stop reading").clicked(){
+                        if ui.button("Stop Read").on_hover_text("Stop reading").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
                             println!("Cmd: Stop")};
-                        },
+                        
+                        let yldest_state = ystud.yldest_state.lock().unwrap().clone();
+                        match yldest_state {
+                            YldestState::Idle{ dir: Some(dir) }
+                            => {
+                                ui.label("Idle");
+                                if ui.button("New Rec").on_hover_text("Start a new recording").clicked() {
+                                    let dir = std::env::current_dir().unwrap();
+                                    ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
+                                }
+                            },
+                            YldestState::Recording { path }
+                            => {
+                                ui.label(format!("Recording to {}", path.to_str().unwrap()));
+                                if ui.button("Stop Rec").on_hover_text("Stop recording").clicked() {
+                                        ystud.yldest_cmd.send(YldestCmd::Stop).unwrap();}
+                            },
+                            _ => {}
+                        }
+                    },
 
                 // Selecting port and YLab version
                 // When both are selected, the connect button is shown
@@ -174,7 +193,7 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             match (ylab_state, yldest_state) {
                 // show New button when Reading and Idle
                 (YLabState::Reading {version:_, port_name:_},
-                    YldestState::Idle {dir: Some(_)})
+                 YldestState::Idle {dir: Some(_)})
                     => {
                         ui.label("Idle");
                         if ui.button("New Recording").on_hover_text("Start a new recording").clicked() {
@@ -183,7 +202,7 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         }},
                 // show path and stop button when recording
                 (YLabState::Reading {version:_, port_name:_},
-                YldestState::Recording {path}) 
+                 YldestState::Recording {path}) 
                 => {
                    ui.label(format!("Recording to {}", path.to_str().unwrap()));
                    if ui.button("Stop").on_hover_text("Stop recording").clicked() {
