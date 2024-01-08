@@ -33,7 +33,8 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
             YLabState::Reading {version: _, port_name: _} 
             => {// Split inconing history into points series
                 let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
-                let series = incoming.split();
+                let series 
+                    = incoming.split();
                 plot = plot
                         .auto_bounds_x()
                         .auto_bounds_y().
@@ -90,7 +91,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 // sampling rate
                                 400 as u32, // <----- fix me
                                 // optional frequency limit: e.g. only interested in frequencies 50 <= f <= 150?
-                                FrequencyLimit::Range(4.0, 30.0),
+                                FrequencyLimit::Range(1.0, 30.0), // covering heart rate and most neuroactivity
                                 // optional scale
                                 Some(&divide_by_N),
                             )
