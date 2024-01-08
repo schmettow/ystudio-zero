@@ -35,14 +35,18 @@ fn main() {
         = channel();
     // data sliding window for plotting
     let yld_wind 
-        = Arc::new(Mutex::new(History::<Yld>::new(0..4096,5.0)));
-    
+        = Arc::new(Mutex::new(History::<Yld>::new(0..20_000,5.0)));
+    let ytf_wind 
+        = Arc::new(Mutex::new(History::<Ytf8>::new(0..1024, 5.0)));
+    //let (mut ytf_out, ytf_in) = spmc::channel();
+
     let ystud = Ystudio {
         ylab_state: ylab_state.clone(),
         ylab_cmd,
         yldest_state: yldest_state.clone(),
         yldest_cmd,
         yld_wind: yld_wind.clone(),
+        ytf_wind: ytf_wind.clone(),
         ui: Yui {
             selected_port: Arc::new(Mutex::new(None)),
             selected_version: Arc::new(Mutex::new(None)),
@@ -64,6 +68,7 @@ fn main() {
             ylab_state,
             ylab_listen,
             yld_wind,
+            ytf_wind,
             yldest_send,
         );
     });

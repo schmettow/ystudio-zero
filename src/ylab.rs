@@ -5,8 +5,10 @@
 
 pub use std::fmt;
 pub use std::time::Instant;
-pub use std::path::PathBuf;
+
 #[allow(unused_imports)]
+pub use std::path::PathBuf;
+
 use log::{info, warn};
 
 
@@ -95,6 +97,8 @@ use std::thread;
 use std::time::Duration;
 use egui::emath::History;
 
+use self::data::Ytf8;
+
 
 /// Task for reading data from serial port
 /// 
@@ -102,11 +106,23 @@ use egui::emath::History;
 /// yld_wind is used for storing data
 /// ylab_listen is used for listening to commands
 /// 
+/// This task publishes the data in Ytf8 format to the module static YTF_OUT.
+/// YTF_OUT uses the PubSubChannel from Embassy. This is designed to work heapless with a static queue (2000).
+/// which has the nice side effect, that you can put it in a static variable. This makes it easy to "find": ylab::YTF_OUT.
+/// 
+/// 
+
+//pub use embassy_sync::pubsub::PubSubChannel;
+//pub type YtfSub = embassy_sync::pubsub::Subscriber<'static, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, Ytf8, 2000, 2, 1>;
+//pub static YTF_OUT: PubSubChannel<CriticalSectionRawMutex, Ytf8, 2000, 2, 1> = PubSubChannel::new();
+
+
 
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>,
     ylab_listen: mpsc::Receiver<YLabCmd>,
     yld_wind: Arc<Mutex<History<data::Yld>>>,
+    ytf_wind: Arc<Mutex<History<data::Ytf8>>>,
     yld_st: mpsc::Sender<data::Yld>,
     ) -> ! {
     
@@ -173,11 +189,8 @@ pub fn ylab_thread(
             => {*bufreader.lock().unwrap() 
                     = Some(BufReader::new(serialport.lock().unwrap().take().unwrap()));
                 *ylab_state.lock().unwrap() = YLabState::Reading {version: version.clone(),
-                    port_name: port_name.clone()}
+                    port_name: port_name.clone()};
                 },
-
-                        
-                        
             
             (YLabState::Reading {version:_, port_name:_, }, 
             None) 
@@ -200,6 +213,8 @@ pub fn ylab_thread(
                                         // Ytf8 line,
                                         Ok(sample) => {
                                             let ystudio_time =Instant::now().duration_since(start_time);
+                                            ytf_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), sample.clone());
+                                            //ytf_out.send(sample).unwrap();
                                             let yld = sample.to_unit().to_yld(ystudio_time);
                                             for measure in yld.iter() {
                                                 yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());

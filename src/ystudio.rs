@@ -48,12 +48,13 @@ pub struct Yui {
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
     pub ylab_cmd: Sender<YLabCmd>, // sending commands to ylab
     pub yldest_state: Arc<Mutex<YldestState>>, // shared state
-    pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to 
+    pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
     pub yld_wind: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
+    pub ytf_wind: Arc<Mutex<History<Ytf8>>>, // data stream, sort of temporal vecdeque
     pub ui: Yui, // user interface value buffer
 }
