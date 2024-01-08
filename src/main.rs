@@ -35,7 +35,7 @@ fn main() {
         = channel();
     // data sliding window for plotting
     let yld_wind 
-        = Arc::new(Mutex::new(History::<Yld>::new(0..10_000,5.0)));
+        = Arc::new(Mutex::new(History::<Yld>::new(0..4096,5.0)));
     
     let ystud = Ystudio {
         ylab_state: ylab_state.clone(),
