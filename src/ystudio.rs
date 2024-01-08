@@ -26,6 +26,7 @@ impl eframe::App for Ystudio {
         update_left_panel(ctx, self);
         update_right_panel(ctx, self);
         update_central_panel(ctx, self);
+        update_bottom_panel(ctx, self);
         ctx.request_repaint();
     }
 }
