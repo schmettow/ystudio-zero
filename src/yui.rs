@@ -42,7 +42,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 plot = plot.legend(legend);
                 // Plot lines
                 plot.show(ui, |plot_ui| {
-                for (probe, points) in series.iter().enumerate() {
+                for (probe, points) in series.iter().enumerate() { 
                     if ystud.ui.selected_channels.lock().unwrap()[probe] {
                         let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
                         plot_ui.line(line);
@@ -55,6 +55,82 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         
     });
 }
+
+
+/// Bottom panel with FFT
+pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
+    egui::TopBottomPanel::bottom("bottom_panel")
+        .show(ctx, |ui| {
+            ui.heading("Distribution of Frequencies");
+            let ylab_state = ystud.ylab_state.lock().unwrap().clone();
+            //let yldest_state = ystud.yldest_state.lock().unwrap().clone();
+            
+            match ylab_state {
+                // show New button when Reading and Idle
+                YLabState::Reading {version:_, port_name:_}
+                => {
+                    let mut plot = egui_plot::Plot::new("FFT");
+                    match (ystud.ylab_state.lock().unwrap().clone()) {
+                        (YLabState::Reading {version: _, port_name: _}) 
+                        => {// Split inconing history into sample vector
+                            let incoming = ystud.ytf_wind.lock().unwrap().clone();
+                            let series = incoming.values();
+                            let mut samples: [f32; 1024] = [0.0; 1024];
+                            for (i,s) in series.enumerate() {
+                                samples[i] = s.read[0] as f32; // <--------using only the first probe
+                            }
+                            use spectrum_analyzer::scaling::divide_by_N;
+                            use spectrum_analyzer::windows::hann_window;
+                            use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
+                            let hann_window = hann_window(&samples);
+                            // calc spectrum
+                            let spectrum = samples_fft_to_spectrum(
+                                // (windowed) samples
+                                &hann_window,
+                                // sampling rate
+                                400 as u32, // <----- fix me
+                                // optional frequency limit: e.g. only interested in frequencies 50 <= f <= 150?
+                                FrequencyLimit::Range(4.0, 30.0),
+                                // optional scale
+                                Some(&divide_by_N),
+                            )
+                            .unwrap();
+                            let mut points: Vec<[f64;2]> = vec![[0.0, 0.0]; 1024];
+                            for (i, (fr, fr_val)) in spectrum.data().iter().enumerate() {
+                                points[i] = [fr.val() as f64, fr_val.val() as f64];
+                            }
+                            
+                            ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
+                            plot = plot
+                                    .auto_bounds_x()
+                                    .auto_bounds_y().
+                                    legend(egui_plot::Legend::default());
+                            // Plot distribution
+                            plot.show(ui, |plot_ui| {
+                            
+                            let line = egui_plot::Line::new(PlotPoints::new(points));
+                            plot_ui.line(line);
+                            
+                            /*for (probe, points) in series.iter().enumerate() {
+                                if ystud.ui.selected_channels.lock().unwrap()[probe] {
+                                    let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
+                                    plot_ui.line(line);
+                                }
+                            }*/
+                });
+                    },
+                    _ => {},
+                }
+        
+                    
+                    },
+                _   => {ui.label("Idle");},
+            }
+        }
+    );
+}
+
+
 
 
 /// YLAB CONTROL in the right panel
@@ -213,74 +289,3 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
         }
     );
 }
-
-
-pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
-    egui::TopBottomPanel::bottom("bottom_panel")
-        .show(ctx, |ui| {
-            ui.heading("Analysis");
-            let ylab_state = ystud.ylab_state.lock().unwrap().clone();
-            //let yldest_state = ystud.yldest_state.lock().unwrap().clone();
-            
-            match ylab_state {
-                // show New button when Reading and Idle
-                YLabState::Reading {version:_, port_name:_}
-                => {
-                    let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
-                    let series = incoming.split();
-                    ui.heading("Spectral power analysis");
-                    let mut plot = egui_plot::Plot::new("plotter");
-                    let sample_rate: Option<f32> = incoming.mean_time_interval();
-                    match (ystud.ylab_state.lock().unwrap().clone(), sample_rate) {
-                        (YLabState::Reading {version: _, port_name: _}, Some(sample_rate)) 
-                        => {// Split inconing history into sample vector
-                            ui.label(format!("{} SPS", (sample_rate) as usize));
-                            let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
-                            let series = &incoming.split()[0];
-                            let mut samples: [f32; 4096] = [0.0; 4096];
-                            for (i,s) in series.iter().enumerate() {
-                                samples[i] = s[1] as f32;
-                            }
-                            use spectrum_analyzer::scaling::divide_by_N;
-                            use spectrum_analyzer::windows::hann_window;
-                            use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
-                            let hann_window = hann_window(&samples);
-                            // calc spectrum
-                            let spectrum_hann_window = samples_fft_to_spectrum(
-                                // (windowed) samples
-                                &hann_window,
-                                // sampling rate
-                                sample_rate as u32,
-                                // optional frequency limit: e.g. only interested in frequencies 50 <= f <= 150?
-                                FrequencyLimit::All,
-                                // optional scale
-                                Some(&divide_by_N),
-                            )
-                            .unwrap();        
-                            plot = plot
-                                    .auto_bounds_x()
-                                    .auto_bounds_y().
-                                    legend(egui_plot::Legend::default());
-                            let legend = egui_plot::Legend::default();
-                            plot = plot.legend(legend);
-                            // Plot lines
-                            plot.show(ui, |plot_ui| {
-                            /*for (probe, points) in series.iter().enumerate() {
-                                if ystud.ui.selected_channels.lock().unwrap()[probe] {
-                                    let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
-                                    plot_ui.line(line);
-                                }
-                            }*/
-                });
-                    },
-                    _ => {},
-                }
-        
-                    
-                    },
-                _   => {ui.label("Idle");},
-            }
-        }
-    );
-}
-
