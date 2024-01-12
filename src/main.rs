@@ -20,6 +20,9 @@ use log::{info, warn, debug, error};
 /// 3. a Yld channel for sending data from Ylab to to Yldest
 /// 4. a Yld History for sharing a sliding window with the GUI
 
+const YLD_WIND_LEN:usize = 20_000;
+const YTF_WIND_LEN:usize = 1024;
+
 fn main() {
     // states
     let ylab_state 
@@ -35,9 +38,9 @@ fn main() {
         = channel();
     // data sliding window for plotting
     let yld_wind 
-        = Arc::new(Mutex::new(History::<Yld>::new(0..20_000,5.0)));
+        = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
     let ytf_wind 
-        = Arc::new(Mutex::new(History::<Ytf8>::new(0..1024, 5.0)));
+        = Arc::new(Mutex::new(History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0)));
     //let (mut ytf_out, ytf_in) = spmc::channel();
 
     let ystud = Ystudio {
@@ -51,6 +54,8 @@ fn main() {
             selected_port: Arc::new(Mutex::new(None)),
             selected_version: Arc::new(Mutex::new(None)),
             selected_channels: Arc::new(Mutex::new([false; 8])),
+            lowpass_threshold: Arc::new(Mutex::new(40.0)),
+            lowpass_burnin: Arc::new(Mutex::new(0.0)),
         },
     };
 

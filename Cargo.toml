@@ -17,4 +17,5 @@ mpsc = { version = "0.2.3", features = ["vecdeque"] }
 egui_file = "0.11.0"
 log = "0.4.20"
 spectrum-analyzer = "1.5.0"
+biquad = "0.4.2"
 # strum = "0.25.0"

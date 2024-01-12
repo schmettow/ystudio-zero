@@ -1,4 +1,6 @@
-use crate::{ylab::*, yldest::{*, self}};
+use std::collections::VecDeque;
+
+use crate::{ylab::*, yldest::{*, self}, YLD_WIND_LEN};
 use crate::ylab::data::*;
 use crate::ystudio::Ystudio;
 use eframe::egui;
@@ -37,16 +39,39 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     = incoming.split();
                 plot = plot
                         .auto_bounds_x()
-                        .auto_bounds_y().
-                        legend(egui_plot::Legend::default());
+                        //.include_y(0)
+                        .auto_bounds_y()
+                        .legend(egui_plot::Legend::default());
                 let legend = egui_plot::Legend::default();
                 plot = plot.legend(legend);
                 // Plot lines
                 plot.show(ui, |plot_ui| {
-                for (probe, points) in series.iter().enumerate() { 
+                for (probe, points) in &mut series.clone().iter().enumerate() { 
                     if ystud.ui.selected_channels.lock().unwrap()[probe] {
-                        let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
-                        plot_ui.line(line);
+                        use biquad::{Biquad, Coefficients, DirectForm1, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
+                        //let cutoff = 100.hz();
+                        let cutoff = *ystud.ui.lowpass_threshold.lock().unwrap() as f32;
+                        let sampling_rate: f32 = 600.0;
+                        // Create coefficients for the biquads
+                        let coeffs =
+                            Coefficients::<f32>::from_params(Type::LowPass, sampling_rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32).unwrap();
+                        let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
+                        let mut biquad_lpf = DirectForm1::<f32>::new(coeffs);
+                        points.iter()
+                            .for_each(|point| filtered_points.push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+
+                        //let burnin = *ystud.ui.lowpass_burnin.lock().unwrap() as usize;
+                        let burnin: usize = ((sampling_rate * 2.0)/cutoff) as usize;
+                        
+                        for _ in 1..burnin {
+                            filtered_points.pop_back().unwrap();
+                        }
+                        
+
+                        let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
+                        plot_ui.line(filtered_line);
+                        
+                        
                     }
                 }
         });
@@ -89,9 +114,9 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 // (windowed) samples
                                 &hann_window,
                                 // sampling rate
-                                400 as u32, // <----- fix me
+                                600 as u32, // <----- fix me
                                 // optional frequency limit: e.g. only interested in frequencies 50 <= f <= 150?
-                                FrequencyLimit::Range(1.0, 30.0), // covering heart rate and most neuroactivity
+                                FrequencyLimit::Range(1.0, 70.0), // covering heart rate and most neuroactivity
                                 // optional scale
                                 Some(&divide_by_N),
                             )
@@ -178,6 +203,21 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 selected_channels[chan] = !b;
                             }
                         };
+                        // Slider for low-pass filter
+
+                        ui.label("Low-pass filter");
+                        let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap();
+                        let lowpass_slider 
+                            = egui::widgets::Slider::new(&mut *this_lowpass, 0.5..=300.0)
+                            .clamp_to_range(true);
+                        ui.add(lowpass_slider);
+
+                        /*let mut this_burnin = ystud.ui.lowpass_burnin.lock().unwrap();
+                        let burnin_slider 
+                            = egui::widgets::Slider::new(&mut *this_burnin, 0.0..=300.0)
+                            .clamp_to_range(true);
+                        ui.add(burnin_slider);*/
+
                         // Stop reading
                         if ui.button("Stop Read").on_hover_text("Stop reading").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
