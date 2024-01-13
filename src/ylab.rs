@@ -49,22 +49,6 @@ impl fmt::Display for YLabVersion {
 /// YLab states are organized hierarchically to make it
 /// easier to pass on objects.
 
-/*
-#[derive(PartialEq, Debug, Clone)]
-pub enum Recording {
-    Raw {start_time: Instant, file: PathBuf},
-    Yld {start_time: Instant, file: PathBuf},
-    Paused {start_time: Instant, file: PathBuf},
-}
-*/
-
-/*#[derive(PartialEq, Debug, Clone)]
-pub enum Yops { // YLab operational status
-    Idle(),
-    Reading {},
-    Recording {file: PathBuf},
-}*/
-
 use serialport;
 use std::io::{BufReader,BufRead};
 pub type LockedSerial = Arc<Mutex<Option<Box<dyn serialport::SerialPort + 'static>>>>;
@@ -106,15 +90,6 @@ use self::data::Ytf8;
 /// yld_wind is used for storing data
 /// ylab_listen is used for listening to commands
 /// 
-/// This task publishes the data in Ytf8 format to the module static YTF_OUT.
-/// YTF_OUT uses the PubSubChannel from Embassy. This is designed to work heapless with a static queue (2000).
-/// which has the nice side effect, that you can put it in a static variable. This makes it easy to "find": ylab::YTF_OUT.
-/// 
-/// 
-
-//pub use embassy_sync::pubsub::PubSubChannel;
-//pub type YtfSub = embassy_sync::pubsub::Subscriber<'static, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, Ytf8, 2000, 2, 1>;
-//pub static YTF_OUT: PubSubChannel<CriticalSectionRawMutex, Ytf8, 2000, 2, 1> = PubSubChannel::new();
 
 
 
