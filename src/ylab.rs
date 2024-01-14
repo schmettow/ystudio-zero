@@ -29,6 +29,14 @@ impl YLabVersion {
             YLabVersion::Mini => 125_200,
         }
     }
+
+    pub fn fft_size(&self) -> i32 {
+        match *self {
+            YLabVersion::Pro => 1024,
+            YLabVersion::Go => 512,
+            YLabVersion::Mini => 256,
+        }
+    }
 }
 
 
