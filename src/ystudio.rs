@@ -53,7 +53,8 @@ pub struct Yui2 {
     pub selected_channels: [bool; 8],
     pub lowpass_threshold: f64,
     pub lowpass_burnin: f64,
-    pub frequency_range: spectrum_analyzer::FrequencyLimit,
+    pub fft_min: f64,
+    pub fft_max: f64
     //opened_file: Option<PathBuf>,
     //open_file_dialog: Option<FileDialog>,
 }
@@ -117,8 +118,8 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     = incoming.split();
                 plot = plot
                         .auto_bounds_x()
-                        .include_y(0.04) // <----- still hard coded 
-                        .include_y(0.06) // <----- still hard coded
+                        //.include_y(0.04) // <----- still hard coded 
+                        //.include_y(0.06) // <----- still hard coded
                         .auto_bounds_y()
                         .legend(egui_plot::Legend::default());
                 let legend = egui_plot::Legend::default();
@@ -129,13 +130,14 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 
                 for (probe, points) in &mut series.clone().iter().enumerate() { 
                     if ystud.ui.selected_channels.lock().unwrap()[probe] {
-                        use biquad::{Biquad, Coefficients, DirectForm1, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
+                        use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
                         //let cutoff = 100.hz();
                         let cutoff = *ystud.ui.lowpass_threshold.lock().unwrap() as f32;
-                        let sampling_rate: f32 = incoming.rate().unwrap_or(0.001); // <---- hard coded
+                        let sampling_rate: f32 = incoming.rate().unwrap_or(1.0); // <---- hard coded
                         // Create coefficients for the biquads
                         let coeffs =
-                            Coefficients::<f32>::from_params(Type::LowPass, sampling_rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32).unwrap();
+                            Coefficients::<f32>::from_params(Type::LowPass, sampling_rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32)
+                            .unwrap();
                         let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
                         let mut biquad_lpf = DirectForm1::<f32>::new(coeffs);
                         points.iter()
@@ -175,22 +177,35 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             
             match ylab_state {
                 // show New button when Reading and Idle
-                YLabState::Reading {version:_, port_name:_}
+                YLabState::Reading {version, port_name:_}
                 => {
+                    #[warn(non_upper_case_globals)]
+                    const fft_size: usize = 512; // <--- hard-coded
                     let mut plot = egui_plot::Plot::new("FFT");
+                    let incoming = ystud.ytf_wind.lock().unwrap().clone();
+                    let incoming_size = incoming.len();
+                    if incoming_size < fft_size {
+                        return
+                    }
                     match (ystud.ylab_state.lock().unwrap().clone()) {
                         (YLabState::Reading {version: _, port_name: _}) 
-                        => {// Split inconing history into a sample vector
-                            let incoming = ystud.ytf_wind.lock().unwrap().clone();
+                        => {// Split inconing YTF history into a sample vector
+                            //let fft_size = version.fft_size(); // <----- use this to make FFT window size dynamic
+                            
+                            
+                            
                             let series = incoming.values();
                             // making an array of readings
                             // FFT needs n to be power of 2
                             // should be done dynamic in later versions
                             // note that hann_window is a vector, not an array
                             // so it should be possible here, too
-                            let mut samples: [f32; 1024] = [0.0; 1024];
+                            let mut samples: [f32; fft_size] = [0.0; fft_size];
                             for (i,s) in series.enumerate() {
-                                samples[i] = s.read[0] as f32; // <--------using only the first probe
+                                // let average = s.read[0] + s.read[1] + s.read[2] + s.read[3] + s.read[4] + s.read[5] + s.read[6] + s.read[7]/8.0;
+                                if i >= fft_size {break};
+                                let average = s.read[0]; // <--------using only the first probe for now
+                                samples[i] = average as f32; 
                             }
                             // configuring the FFT engine
                             use spectrum_analyzer::scaling::divide_by_N;
@@ -198,36 +213,47 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
                             let hann_window = hann_window(&samples);
                             // calculate spectrum
+                            let freq_range = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
                             let spectrum 
                                 = samples_fft_to_spectrum(
                                     // (windowed) samples
                                     &hann_window,
                                     // sampling rate
-                                    600 as u32, // <----- fix me
+                                    incoming.rate().unwrap_or(1.0) as u32,
                                     // hard-coded frequency limit
                                     // FrequencyLimit::Range(0.5, 35.0), // covering heart rate and most neuroactivity
                                     // dynamic freq limit
-                                    ui_state.frequency_range,
+                                    freq_range,
                                     // optional scale
-                                    Some(&divide_by_N),)
-                                .unwrap();
+                                    Some(&divide_by_N),);
+                            match spectrum {
+                                Err(e) => {println!("{:?}", e);},
+                                Ok(spectrum) => {
+                                    // Fix bug where spectrum has just one or less values <-----
+                                    let mut points: Vec<[f64;2]> = vec![[0.0, 0.0]; fft_size];
+                                    for (i, (fr, fr_val)) in spectrum.data().iter().enumerate() {
+                                        points[i] = [fr.val() as f64, fr_val.val() as f64];
+                                    }
+                                    ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
+                                    plot = plot
+                                            .auto_bounds_x()
+                                            .auto_bounds_y()
+                                            .include_x(ui_state.fft_min)
+                                            .include_x(ui_state.fft_max)
+                                            .legend(egui_plot::Legend::default());
+                                    // Plot distribution
+                                    plot.show(ui, |plot_ui| {
+                                        let line = egui_plot::Line::new(PlotPoints::new(points));
+                                        plot_ui.line(line);
+                                    });
+
+                                }
+                            }
                             // change this to dynamic by creating an empty vector with ::new()
                             // which is populated by push()
-                            let mut points: Vec<[f64;2]> = vec![[0.0, 0.0]; 1024];
-                            for (i, (fr, fr_val)) in spectrum.data().iter().enumerate() {
-                                points[i] = [fr.val() as f64, fr_val.val() as f64];
-                            }
                             
-                            ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
-                            plot = plot
-                                    .auto_bounds_x()
-                                    .auto_bounds_y().
-                                    legend(egui_plot::Legend::default());
-                            // Plot distribution
-                            plot.show(ui, |plot_ui| {
                             
-                            let line = egui_plot::Line::new(PlotPoints::new(points));
-                            plot_ui.line(line);
+                            
                             
                             /*for (probe, points) in series.iter().enumerate() {
                                 if ystud.ui.selected_channels.lock().unwrap()[probe] {
@@ -235,7 +261,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     plot_ui.line(line);
                                 }
                             }*/
-                });
+                
                     },
                     _ => {},
                 }
@@ -257,6 +283,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
+            let mut ui_state = ystud.ui2.lock().unwrap();
             let ylab_state = ystud.ylab_state.lock().unwrap();
             // setting defaults
             let selected_version 
@@ -297,12 +324,24 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         };
                         // Slider for low-pass filter
 
-                        ui.label("Low-pass filter");
+                        ui.label("Low-pass filter (Hz)");
                         let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap();
                         let lowpass_slider 
                             = egui::widgets::Slider::new(&mut *this_lowpass, 0.5..=300.0)
                             .clamp_to_range(true);
                         ui.add(lowpass_slider);
+
+                        ui.label("FFT min (Hz)");
+                        let fft_min_slider 
+                            = egui::widgets::Slider::new(&mut ui_state.fft_min, 0.5..=300.0)
+                            .clamp_to_range(true);
+                        ui.add(fft_min_slider);
+
+                        ui.label("FFT max (Hz)");
+                        let fft_min_slider 
+                            = egui::widgets::Slider::new(&mut ui_state.fft_max, 0.5..=300.0)
+                            .clamp_to_range(true);
+                        ui.add(fft_min_slider);
 
                         /*let mut this_burnin = ystud.ui.lowpass_burnin.lock().unwrap();
                         let burnin_slider 
