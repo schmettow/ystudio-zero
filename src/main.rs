@@ -71,7 +71,8 @@ fn main() {
             selected_channels: [false; 8],
             lowpass_threshold: 40.0,
             lowpass_burnin: 0.0,
-            frequency_range: spectrum_analyzer::FrequencyLimit::Range(1.0, 55.0), // <-- global lock works
+            fft_min: 2.0,
+            fft_max: 15.0,
         })),
     };
 
