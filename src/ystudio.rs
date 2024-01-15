@@ -3,6 +3,7 @@ pub use eframe::egui;
 pub use egui::util::History;
 pub use egui_plot::PlotPoints;
 pub use std::sync::mpsc::Sender;
+use std::vec;
 pub use std::{thread, sync::*};
 pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, data::*};
 pub use crate::ylab::*;
@@ -213,7 +214,8 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
                             let hann_window = hann_window(&samples);
                             // calculate spectrum
-                            let freq_range = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
+                            let freq_range 
+                                = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
                             let spectrum 
                                 = samples_fft_to_spectrum(
                                     // (windowed) samples
@@ -229,10 +231,10 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             match spectrum {
                                 Err(e) => {println!("{:?}", e);},
                                 Ok(spectrum) => {
-                                    // Fix bug where spectrum has just one or less values <-----
-                                    let mut points: Vec<[f64;2]> = vec![[0.0, 0.0]; fft_size];
-                                    for (i, (fr, fr_val)) in spectrum.data().iter().enumerate() {
-                                        points[i] = [fr.val() as f64, fr_val.val() as f64];
+                                    let mut points = Vec::new();
+                                    for (i, (fr, fr_val)) 
+                                    in spectrum.data().iter().enumerate() {
+                                        points.push([fr.val() as f64, fr_val.val() as f64]);
                                     }
                                     ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
                                     plot = plot
