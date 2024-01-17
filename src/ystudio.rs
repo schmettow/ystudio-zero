@@ -343,14 +343,16 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.add(lowpass_slider);
 
                         ui.label("FFT min (Hz)");
+                        let min_range = 0.5 ..=(ui_state.fft_max - 1.0);
                         let fft_min_slider 
-                            = egui::widgets::Slider::new(&mut ui_state.fft_min, 0.5..=300.0)
+                            = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
                             .clamp_to_range(true);
                         ui.add(fft_min_slider);
 
                         ui.label("FFT max (Hz)");
+                        let max_range = (ui_state.fft_min + 1.0)..=300.0;
                         let fft_min_slider 
-                            = egui::widgets::Slider::new(&mut ui_state.fft_max, 0.5..=300.0)
+                            = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
                             .clamp_to_range(true);
                         ui.add(fft_min_slider);
 
