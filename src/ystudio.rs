@@ -2,6 +2,7 @@
 pub use eframe::egui;
 pub use egui::util::History;
 pub use egui_plot::PlotPoints;
+use serialport::new;
 pub use std::sync::mpsc::Sender;
 use std::vec;
 pub use std::{thread, sync::*};
@@ -119,7 +120,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     = incoming.split();
                 plot = plot
                         .auto_bounds_x()
-                        //.include_y(0.04) // <----- still hard coded 
+                        .include_y(0.0) // <----- still hard coded 
                         //.include_y(0.06) // <----- still hard coded
                         .auto_bounds_y()
                         .legend(egui_plot::Legend::default());
@@ -190,7 +191,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 YLabState::Reading {version, port_name:_}
                 => {
                     #[warn(non_upper_case_globals)]
-                    const fft_size: usize = 512; // <--- hard-coded
+                    let fft_size = version.min_buffer(); // <--- hard-coded
                     let mut plot = egui_plot::Plot::new("FFT");
                     let incoming = ystud.ytf_wind.lock().unwrap().clone();
                     let incoming_size = incoming.len();
@@ -210,6 +211,25 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             // should be done dynamic in later versions
                             // note that hann_window is a vector, not an array
                             // so it should be possible here, too
+                            /*let mut samples = Vec::with_capacity(version.fft_buffer());
+                            for (i, value) in series.enumerate() {
+                                if i >= version.fft_buffer() {break};
+                                samples.push(value.read[0]);
+                            };
+
+                            use std::convert::AsMut;
+                            fn clone_into_array<A, T>(slice: &[T]) -> A
+                            where
+                                A: Default + AsMut<[T]>,
+                                T: Clone,
+                            {
+                                let mut a = A::default();
+                                <A as AsMut<[T]>>::as_mut(&mut a).clone_from_slice(slice);
+                                a
+                            }
+                            
+                            let sample_array = clone_into_array(&samples);*/
+                            const fft_size: usize = 512;
                             let mut samples: [f32; fft_size] = [0.0; fft_size];
                             for (i,s) in series.enumerate() {
                                 // let average = s.read[0] + s.read[1] + s.read[2] + s.read[3] + s.read[4] + s.read[5] + s.read[6] + s.read[7]/8.0;
@@ -319,11 +339,6 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
 
-                        let sample_rate: Option<f32> = yld_wind.mean_time_interval();
-                        match sample_rate {
-                            Some(sample_rate) => {ui.label(format!("{} Hz", (1.0/sample_rate) as usize));},
-                            None => {ui.label("still buffering");},
-                        }
                         // Selecting channels to plot
                         ui.heading("Channels");
                         let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
@@ -333,28 +348,47 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 selected_channels[chan] = !b;
                             }
                         };
-                        // Slider for low-pass filter
 
+                        let buffer_size = yld_wind.len()/8;
+                        // This avoids a block level
+                        if buffer_size < version.min_buffer() {
+                            ui.label("still buffering");
+                            return;
+                        }
+                         // safe, because we have a minimum buffer size
+                        let mean_interval = yld_wind.mean_time_interval().unwrap() as f64;
+                        let duration = yld_wind.duration() as f64;
+                        let sample_rate = buffer_size as f64/duration;
+                        let nyquist = sample_rate/2.; 
+                        let low_limit = duration/2.; 
+                        
+                        ui.label(format!("{} Hz", (sample_rate) as usize));
+
+                        // Slider for low-pass filter
                         ui.label("Low-pass filter (Hz)");
                         let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap();
                         let lowpass_slider 
-                            = egui::widgets::Slider::new(&mut *this_lowpass, 0.5..=300.0)
+                            = egui::widgets::Slider::new(&mut *this_lowpass, low_limit..=nyquist)
                             .clamp_to_range(true);
-                        ui.add(lowpass_slider);
+                            ui.add(lowpass_slider);
+                            
+                            // Sliders for FFT range
+                            ui.label("FFT min (Hz)");
+                            let min_range = low_limit ..=(ui_state.fft_max - 1.0);
+                            let fft_min_slider 
+                                = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
+                                .clamp_to_range(true);
+                            ui.add(fft_min_slider);
 
-                        ui.label("FFT min (Hz)");
-                        let min_range = 0.5 ..=(ui_state.fft_max - 1.0);
-                        let fft_min_slider 
-                            = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
-                            .clamp_to_range(true);
-                        ui.add(fft_min_slider);
-
-                        ui.label("FFT max (Hz)");
-                        let max_range = (ui_state.fft_min + 1.0)..=300.0;
-                        let fft_min_slider 
-                            = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
-                            .clamp_to_range(true);
-                        ui.add(fft_min_slider);
+                            ui.label("FFT max (Hz)");
+                            let max_range = (ui_state.fft_min + 1.)..=nyquist;
+                            let fft_max_slider 
+                                = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
+                                .clamp_to_range(true);
+                            ui.add(fft_max_slider);
+                            
+                        
+                        
 
                         /*let mut this_burnin = ystud.ui.lowpass_burnin.lock().unwrap();
                         let burnin_slider 
