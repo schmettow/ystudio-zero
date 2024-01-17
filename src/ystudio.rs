@@ -134,26 +134,35 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                         use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
                         //let cutoff = 100.hz();
                         let cutoff = *ystud.ui.lowpass_threshold.lock().unwrap() as f32;
-                        let sampling_rate: f32 = incoming.rate().unwrap_or(1.0); // <---- hard coded
-                        // Create coefficients for the biquads
-                        let coeffs =
-                            Coefficients::<f32>::from_params(Type::LowPass, sampling_rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32)
-                            .unwrap();
-                        let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
-                        let mut biquad_lpf = DirectForm1::<f32>::new(coeffs);
-                        points.iter()
-                            .for_each(|point| filtered_points.push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+                        let sampling_rate = incoming.rate();
+                        match sampling_rate {
+                            None => {},
+                            Some(rate) => {
+                                // Create coefficients for the biquads
+                                let coeffs 
+                                    = Coefficients::<f32>::from_params(Type::LowPass, rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32);
+                                match coeffs {
+                                    Err(e) => println!("{:?}", e),
+                                    Ok(coeffs) => {
+                                        let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
+                                        let mut biquad_lpf = DirectForm1::<f32>::new(coeffs);
+                                        points.iter()
+                                        .for_each(|point| filtered_points.push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+                                        //let burnin = *ystud.ui.lowpass_burnin.lock().unwrap() as usize;
+                                        let burnin: usize = ((rate * 2.0)/cutoff) as usize;
+                                        
+                                        for _ in 1..burnin {
+                                            filtered_points.pop_back();
+                                        }
+                                        let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
+                                        plot_ui.line(filtered_line);
 
-                        //let burnin = *ystud.ui.lowpass_burnin.lock().unwrap() as usize;
-                        let burnin: usize = ((sampling_rate * 2.0)/cutoff) as usize;
-                        
-                        for _ in 1..burnin {
-                            filtered_points.pop_back();
+                                    }
+                                }
+                                
+                            },
                         }
                         
-
-                        let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
-                        plot_ui.line(filtered_line);
                         
                         
                     }
