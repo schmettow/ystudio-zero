@@ -30,11 +30,19 @@ impl YLabVersion {
         }
     }
 
-    pub fn fft_size(&self) -> i32 {
+    pub fn min_buffer(&self) -> usize {
         match *self {
             YLabVersion::Pro => 1024,
             YLabVersion::Go => 512,
-            YLabVersion::Mini => 256,
+            YLabVersion::Mini => 128,
+        }
+    }
+
+    pub fn fft_buffer(&self) -> usize {
+        match *self {
+            YLabVersion::Pro => 1024,
+            YLabVersion::Go => 512,
+            YLabVersion::Mini => 128,
         }
     }
 }
