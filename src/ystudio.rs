@@ -84,8 +84,8 @@ pub struct Yui {
 }
     
 
+/// Because we have a window, we use a double ended queue
 use std::collections::VecDeque;
-
 /// Initializing the egui window
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -129,6 +129,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 let selected_channels = ui_state.selected_channels;
                 for (probe, points) in &mut series.clone().iter().enumerate() {
                     if selected_channels[probe] {
+                        // applying the low-pass filter
                         use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
                         let sampling_rate = incoming.rate();
                         match sampling_rate {
@@ -154,7 +155,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                         // 
                                         let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
                                         for _ in 0..(burnin as usize) {
-                                            //print!("pop");
                                             filtered_points.pop_back();
                                         }
                                         let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
@@ -192,7 +192,6 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 // show New button when Reading and Idle
                 YLabState::Reading {version, port_name:_}
                 => {
-                    #[warn(non_upper_case_globals)]
                     let fft_size = version.min_buffer();
                     let mut plot = egui_plot::Plot::new("FFT");
                     let incoming = ystud.ytf_wind.lock().unwrap().clone();
@@ -202,67 +201,61 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.label(format!("still buffering ... {}%", incoming_size/fft_size * 100));
                         return
                     }
-                    match ystud.ylab_state.lock().unwrap().clone() {
-                        YLabState::Reading {version, port_name: _} 
-                        => {// Split inconing YTF history into a sample vector
-                            let mut ytf8 = incoming.values();
-                            let fft_size = version.fft_size();
-                            let mut samples: Vec<f32> = Vec::with_capacity(fft_size);
-                            // collecting the fft data
-                            for _ in 0..fft_size {
-                                // using the low-level iterator
-                                match ytf8.next(){
-                                    // For FFT we need the data in the exact size
-                                    // so we check the result of the iterator
-                                    None => {println!("FFT buffer underrun")},
-                                    Some(sample) => {samples.push(sample.read[0] as f32)}
-                                }
+                    // Split inconing YTF history into a sample vector
+                    let mut ytf8 = incoming.values();
+                    // FFT works with fixed sample sizes of power 2. Comnfigured by YLab version.
+                    let fft_size = version.fft_size();
+                    let mut samples: Vec<f32> = Vec::with_capacity(fft_size);
+                    // collecting the fft data
+                    for _ in 0..fft_size {
+                        // using the low-level iterator
+                        match ytf8.next(){
+                            // For FFT we need the data in the exact size
+                            // so we check the result of the iterator
+                            None => {println!("FFT buffer underrun")},
+                            Some(sample) => {samples.push(sample.read[0] as f32)}
+                        }
+                    }
+                    // configuring the FFT engine
+                    use spectrum_analyzer::scaling::divide_by_N;
+                    use spectrum_analyzer::windows::hann_window;
+                    use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
+                    let hann_window = hann_window(samples.as_slice());
+                    // calculate spectrum
+                    let freq_range 
+                        = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
+                    let spectrum 
+                        = samples_fft_to_spectrum(
+                            &hann_window,
+                            incoming.rate().unwrap_or(1.0) as u32,
+                            freq_range,
+                            Some(&divide_by_N),);
+                    match spectrum {
+                        Err(e) => {println!("{:?}", e);},
+                        Ok(spectrum) => {
+                            let mut points = Vec::new();
+                            for (fr, fr_val) 
+                            in spectrum.data().iter() {
+                                points.push([fr.val() as f64, fr_val.val() as f64]);
                             }
-                            
-                            // configuring the FFT engine
-                            use spectrum_analyzer::scaling::divide_by_N;
-                            use spectrum_analyzer::windows::hann_window;
-                            use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
-                            let hann_window = hann_window(samples.as_slice());
-                            // calculate spectrum
-                            let freq_range 
-                                = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
-                            let spectrum 
-                                = samples_fft_to_spectrum(
-                                    &hann_window,
-                                    incoming.rate().unwrap_or(1.0) as u32,
-                                    freq_range,
-                                    Some(&divide_by_N),);
-                            match spectrum {
-                                Err(e) => {println!("{:?}", e);},
-                                Ok(spectrum) => {
-                                    let mut points = Vec::new();
-                                    for (fr, fr_val) 
-                                    in spectrum.data().iter() {
-                                        points.push([fr.val() as f64, fr_val.val() as f64]);
-                                    }
-                                    ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
-                                    ui.label(format!("FFT size: {}", version.fft_size()));
-                                    plot = plot
-                                            .auto_bounds_x()
-                                            .auto_bounds_y()
-                                            .include_x(freq_range.min())
-                                            .include_x(freq_range.max())
-                                            .legend(egui_plot::Legend::default());
-                                    // Plot distribution
-                                    plot.show(ui, |plot_ui| {
-                                        let line = egui_plot::Line::new(PlotPoints::new(points));
-                                        plot_ui.line(line);
-                                    });
+                            ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
+                            ui.label(format!("FFT size: {}", version.fft_size()));
+                            plot = plot
+                                    .auto_bounds_x()
+                                    .auto_bounds_y()
+                                    .include_x(freq_range.min())
+                                    .include_x(freq_range.max())
+                                    .legend(egui_plot::Legend::default());
+                            // Plot distribution
+                            plot.show(ui, |plot_ui| {
+                                let line = egui_plot::Line::new(PlotPoints::new(points));
+                                plot_ui.line(line);
+                            });
 
-                                }
-                            }                
-                    },
-                    _ => {},
-                }
-        
-                    
-                    },
+                        }
+                    }
+
+                },
                 _   => {ui.label("Idle");},
             }
         }
