@@ -2,9 +2,7 @@
 pub use eframe::egui;
 pub use egui::util::History;
 pub use egui_plot::PlotPoints;
-use serialport::new;
 pub use std::sync::mpsc::Sender;
-use std::vec;
 pub use std::{thread, sync::*};
 pub use crate::ylab::{YLabState, YLabCmd, YLabVersion, data::*};
 pub use crate::ylab::*;
@@ -30,37 +28,6 @@ impl eframe::App for Ystudio {
     }
 }
 
-
-/// Data for the UI
-/// 
-/// This is sometimes necessary to hold several values in the UI 
-/// (port, Version) before submitting the command to YLab
-/// 
-#[derive(Debug, Clone)]
-pub struct Yui {
-    pub selected_port: Arc<Mutex<Option<String>>>,
-    pub selected_version: Arc<Mutex<Option<YLabVersion>>>,
-    pub selected_channels: Arc<Mutex<[bool; 8]>>,
-    pub lowpass_threshold: Arc<Mutex<f64>>,
-    pub lowpass_burnin: Arc<Mutex<f64>>,
-    pub frequency_range: Arc<Mutex<spectrum_analyzer::FrequencyLimit>>,
-    //opened_file: Option<PathBuf>,
-    //open_file_dialog: Option<FileDialog>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Yui2 {
-    pub selected_port: Option<String>,
-    pub selected_version: Option<YLabVersion>,
-    pub selected_channels: [bool; 8],
-    pub lowpass_threshold: f64,
-    pub lowpass_burnin: f64,
-    pub fft_min: f64,
-    pub fft_max: f64
-    //opened_file: Option<PathBuf>,
-    //open_file_dialog: Option<FileDialog>,
-}
-
 /// The ystudio object contains thread-safe channels
 /// for communication between components, as well as 
 /// ui properties
@@ -71,10 +38,8 @@ pub struct Yui2 {
 /// + yldest_cmd for controlling the storage component
 /// + yld_wind, which is a egui History of YLab Samples in Yld format
 /// + ytf_wind, which is a egui History of samples in Ytf8 format
-/// + ui, which captures UI related variables with individual locks
-/// + ui2 is experimental and uses only a global lock
+/// + ui, which captures UI related variables with one global lock
 
-    
 #[derive(Clone)]
 pub struct Ystudio {
     pub ylab_state: Arc<Mutex<YLabState>>, // shared state 
@@ -83,9 +48,41 @@ pub struct Ystudio {
     pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
     pub yld_wind: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
     pub ytf_wind: Arc<Mutex<History<Ytf8>>>, // data stream, sort of temporal vecdeque
-    pub ui: Yui, // user interface value buffer
-    pub ui2: Arc<Mutex<Yui2>>, // user interface value buffer as outer ARC
+    pub ui: Arc<Mutex<Yui>>, // ui parameters with outer lock, more convenient
 }
+
+/// Data for the UI
+/// 
+/// This is sometimes necessary to hold several values in the UI 
+/// (port, Version) before submitting the command to YLab
+/// 
+/// 
+/// Structure holding the parameters of the ui
+/// 
+/// such as:
+/// 1.  serial port connected to YLab
+/// 1.  selecting channels for display
+/// 1.  keeping filter controls in the safe range of the underlying algorithm. 
+///     The upper frequency limit is always given by the *Nyquist* frequency. But for the lower limit, it differs.
+///
+/// For *low pass filters* zero is a possible lower limit, effectively switching the filter off. However, when 
+/// passing through the range (1, 0), wavelengths become very long. Apparently, the used algorithm 
+/// 
+/// , and the value buffer becomes the limiting factor. 
+
+
+#[derive(Debug, Clone)]
+pub struct Yui {
+    pub selected_port: Option<String>,
+    pub selected_version: Option<YLabVersion>,
+    pub selected_channels: [bool; 8],
+    pub lowpass_threshold: f64,
+    pub fft_min: f64,
+    pub fft_max: f64
+    //opened_file: Option<PathBuf>,
+    //open_file_dialog: Option<FileDialog>,
+}
+    
 
 use std::collections::VecDeque;
 
@@ -112,6 +109,7 @@ pub fn egui_init(ystud: Ystudio) {
 pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) 
 {   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
+        let ui_state = ystud.ui.lock().unwrap();
         match ystud.ylab_state.lock().unwrap().clone() {
             YLabState::Reading {version: _, port_name: _} 
             => {// Split inconing history into points series
@@ -120,8 +118,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     = incoming.split();
                 plot = plot
                         .auto_bounds_x()
-                        .include_y(0.0) // <----- still hard coded 
-                        //.include_y(0.06) // <----- still hard coded
+                        .include_y(0.0) 
                         .auto_bounds_y()
                         .legend(egui_plot::Legend::default());
                 let legend = egui_plot::Legend::default();
@@ -129,30 +126,35 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 // Plot lines
                 plot.show(ui, |plot_ui| {
 
-                
-                for (probe, points) in &mut series.clone().iter().enumerate() { 
-                    if ystud.ui.selected_channels.lock().unwrap()[probe] {
+                let selected_channels = ui_state.selected_channels;
+                for (probe, points) in &mut series.clone().iter().enumerate() {
+                    if selected_channels[probe] {
                         use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
-                        //let cutoff = 100.hz();
-                        let cutoff = *ystud.ui.lowpass_threshold.lock().unwrap() as f32;
                         let sampling_rate = incoming.rate();
                         match sampling_rate {
                             None => {},
                             Some(rate) => {
+                                // suppress the burn-in phase, dependent on frequency
                                 // Create coefficients for the biquads
+                                let lowpass = ui_state.lowpass_threshold as f32;
                                 let coeffs 
-                                    = Coefficients::<f32>::from_params(Type::LowPass, rate.hz(), cutoff.hz(), Q_BUTTERWORTH_F32);
+                                    = Coefficients::<f32>::from_params( Type::LowPass, 
+                                                                        rate.hz(), 
+                                                                        lowpass.hz(), 
+                                                                        Q_BUTTERWORTH_F32);
                                 match coeffs {
                                     Err(e) => println!("{:?}", e),
                                     Ok(coeffs) => {
                                         let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
-                                        let mut biquad_lpf = DirectForm1::<f32>::new(coeffs);
-                                        points.iter()
-                                        .for_each(|point| filtered_points.push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
-                                        //let burnin = *ystud.ui.lowpass_burnin.lock().unwrap() as usize;
-                                        let burnin: usize = ((rate * 2.0)/cutoff) as usize;
-                                        
-                                        for _ in 1..burnin {
+                                        let mut biquad_lpf 
+                                                = DirectForm1::<f32>::new(coeffs);
+                                        points  .iter()
+                                                .for_each(|point| filtered_points
+                                                                              .push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+                                        // 
+                                        let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
+                                        for _ in 0..(burnin as usize) {
+                                            //print!("pop");
                                             filtered_points.pop_back();
                                         }
                                         let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
@@ -184,78 +186,48 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             ui.heading("Distribution of Frequencies");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
             // using a global lock
-            let ui_state = ystud.ui2.lock().unwrap();
+            let ui_state = ystud.ui.lock().unwrap();
             
             match ylab_state {
                 // show New button when Reading and Idle
                 YLabState::Reading {version, port_name:_}
                 => {
                     #[warn(non_upper_case_globals)]
-                    let fft_size = version.min_buffer(); // <--- hard-coded
+                    let fft_size = version.min_buffer();
                     let mut plot = egui_plot::Plot::new("FFT");
                     let incoming = ystud.ytf_wind.lock().unwrap().clone();
                     let incoming_size = incoming.len();
+                    // 
                     if incoming_size < fft_size {
+                        ui.label(format!("still buffering ... {}%", incoming_size/fft_size * 100));
                         return
                     }
                     match (ystud.ylab_state.lock().unwrap().clone()) {
-                        (YLabState::Reading {version: _, port_name: _}) 
+                        (YLabState::Reading {version, port_name: _}) 
                         => {// Split inconing YTF history into a sample vector
-                            //let fft_size = version.fft_size(); // <----- use this to make FFT window size dynamic
-                            
-                            
-                            
-                            let series = incoming.values();
-                            // making an array of readings
-                            // FFT needs n to be power of 2
-                            // should be done dynamic in later versions
-                            // note that hann_window is a vector, not an array
-                            // so it should be possible here, too
-                            /*let mut samples = Vec::with_capacity(version.fft_buffer());
-                            for (i, value) in series.enumerate() {
-                                if i >= version.fft_buffer() {break};
-                                samples.push(value.read[0]);
-                            };
-
-                            use std::convert::AsMut;
-                            fn clone_into_array<A, T>(slice: &[T]) -> A
-                            where
-                                A: Default + AsMut<[T]>,
-                                T: Clone,
-                            {
-                                let mut a = A::default();
-                                <A as AsMut<[T]>>::as_mut(&mut a).clone_from_slice(slice);
-                                a
+                            let mut ytf8 = incoming.values();
+                            let fft_size = version.fft_size();
+                            let mut samples: Vec<f32> = Vec::with_capacity(fft_size);
+                            for i in 0..fft_size {
+                                match ytf8.next(){
+                                    None => {println!("FFT buffer underrun")},
+                                    Some(sample) => {samples.push(sample.read[0] as f32)}
+                                }
                             }
                             
-                            let sample_array = clone_into_array(&samples);*/
-                            const fft_size: usize = 512;
-                            let mut samples: [f32; fft_size] = [0.0; fft_size];
-                            for (i,s) in series.enumerate() {
-                                // let average = s.read[0] + s.read[1] + s.read[2] + s.read[3] + s.read[4] + s.read[5] + s.read[6] + s.read[7]/8.0;
-                                if i >= fft_size {break};
-                                let average = s.read[0]; // <--------using only the first probe for now
-                                samples[i] = average as f32; 
-                            }
                             // configuring the FFT engine
                             use spectrum_analyzer::scaling::divide_by_N;
                             use spectrum_analyzer::windows::hann_window;
                             use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
-                            let hann_window = hann_window(&samples);
+                            let hann_window = hann_window(samples.as_slice());
                             // calculate spectrum
                             let freq_range 
                                 = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
                             let spectrum 
                                 = samples_fft_to_spectrum(
-                                    // (windowed) samples
                                     &hann_window,
-                                    // sampling rate
                                     incoming.rate().unwrap_or(1.0) as u32,
-                                    // hard-coded frequency limit
-                                    // FrequencyLimit::Range(0.5, 35.0), // covering heart rate and most neuroactivity
-                                    // dynamic freq limit
                                     freq_range,
-                                    // optional scale
                                     Some(&divide_by_N),);
                             match spectrum {
                                 Err(e) => {println!("{:?}", e);},
@@ -266,11 +238,12 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                         points.push([fr.val() as f64, fr_val.val() as f64]);
                                     }
                                     ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
+                                    ui.label(format!("FFT size: {}", version.fft_size()));
                                     plot = plot
                                             .auto_bounds_x()
                                             .auto_bounds_y()
-                                            .include_x(ui_state.fft_min)
-                                            .include_x(ui_state.fft_max)
+                                            .include_x(freq_range.min())
+                                            .include_x(freq_range.max())
                                             .legend(egui_plot::Legend::default());
                                     // Plot distribution
                                     plot.show(ui, |plot_ui| {
@@ -279,20 +252,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     });
 
                                 }
-                            }
-                            // change this to dynamic by creating an empty vector with ::new()
-                            // which is populated by push()
-                            
-                            
-                            
-                            
-                            /*for (probe, points) in series.iter().enumerate() {
-                                if ystud.ui.selected_channels.lock().unwrap()[probe] {
-                                    let line = egui_plot::Line::new(PlotPoints::new(points.to_owned()));
-                                    plot_ui.line(line);
-                                }
-                            }*/
-                
+                            }                
                     },
                     _ => {},
                 }
@@ -314,11 +274,11 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::right("left_right_panel")
         .show(ctx,|ui| {
-            let mut ui_state = ystud.ui2.lock().unwrap();
+            let mut ui_state = ystud.ui.lock().unwrap();
             let ylab_state = ystud.ylab_state.lock().unwrap();
             // setting defaults
             let selected_version 
-                = match ystud.ui.selected_version.lock().unwrap().clone() {
+                = match ui_state.selected_version.clone() {
                     Some(version) => version,
                     None => YLabVersion::Pro,};
             
@@ -341,22 +301,19 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 
                         // Selecting channels to plot
                         ui.heading("Channels");
-                        let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
-                        for (chan, b) in  selected_channels.clone().iter().enumerate(){
-                            let chan_selector = ui.checkbox(&mut b.clone(), chan.to_string());
-                            if chan_selector.changed() {
-                                selected_channels[chan] = !b;
-                            }
+                        //let mut selected_channels = ystud.ui.selected_channels.lock().unwrap();
+                        let selected_channels = ui_state.selected_channels;
+                        for (chan, _) in  selected_channels.iter().enumerate() {
+                            ui.checkbox( &mut ui_state.selected_channels[chan], 
+                                                    chan.to_string());
                         };
 
                         let buffer_size = yld_wind.len()/8;
-                        // This avoids a block level
-                        if buffer_size < version.min_buffer() {
+                        // Check for buffer under-run
+                        if buffer_size < version.fft_size() {
                             ui.label("still buffering");
                             return;
                         }
-                         // safe, because we have a minimum buffer size
-                        let mean_interval = yld_wind.mean_time_interval().unwrap() as f64;
                         let duration = yld_wind.duration() as f64;
                         let sample_rate = buffer_size as f64/duration;
                         let nyquist = sample_rate/2.; 
@@ -366,41 +323,40 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 
                         // Slider for low-pass filter
                         ui.label("Low-pass filter (Hz)");
-                        let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap();
+                        //let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap(); 
                         let lowpass_slider 
-                            = egui::widgets::Slider::new(&mut *this_lowpass, low_limit..=nyquist)
-                            .clamp_to_range(true);
-                            ui.add(lowpass_slider);
+                            = egui::widgets::Slider::new(&mut ui_state.lowpass_threshold, low_limit..=nyquist)
+                            .clamp_to_range(true)
+                            .logarithmic(true)
+                            .fixed_decimals(3);
+                        ui.add(lowpass_slider);
                             
-                            // Sliders for FFT range
-                            ui.label("FFT min (Hz)");
-                            let min_range = low_limit ..=(ui_state.fft_max - 1.0);
-                            let fft_min_slider 
-                                = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
-                                .clamp_to_range(true);
-                            ui.add(fft_min_slider);
+                        // Sliders for FFT range
+                        ui.label("FFT min (Hz)");
+                        let min_range = 0. ..=(nyquist - 2.);
+                        let fft_min_slider 
+                            = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
+                            .clamp_to_range(true)
+                            .logarithmic(true)
+                            .fixed_decimals(3);
+                        ui.add(fft_min_slider);
 
-                            ui.label("FFT max (Hz)");
-                            let max_range = (ui_state.fft_min + 1.)..=nyquist;
-                            let fft_max_slider 
-                                = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
-                                .clamp_to_range(true);
-                            ui.add(fft_max_slider);
+                        ui.label("FFT max (Hz)");
+                        let max_range = (ui_state.fft_min + 2.)..=nyquist - 2.;
+                        let fft_max_slider 
+                            = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
+                            .clamp_to_range(true)
+                            .fixed_decimals(1);
+                        ui.add(fft_max_slider);
                             
-                        
-                        
-
-                        /*let mut this_burnin = ystud.ui.lowpass_burnin.lock().unwrap();
-                        let burnin_slider 
-                            = egui::widgets::Slider::new(&mut *this_burnin, 0.0..=300.0)
-                            .clamp_to_range(true);
-                        ui.add(burnin_slider);*/
-
                         // Stop reading
-                        if ui.button("Stop Read").on_hover_text("Stop reading").clicked(){
+                        //
+                        // send command to YLab
+                        if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
                             ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
                             println!("Cmd: Stop")};
                         
+                        // Start or stop recording
                         let yldest_state = ystud.yldest_state.lock().unwrap().clone();
                         match yldest_state {
                             YldestState::Idle{ dir: Some(dir) }
@@ -433,7 +389,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 => {
                                 // unpacking version and port
                                 let selected_port: Option<String> 
-                                    = match ystud.ui.selected_port.lock().unwrap().clone() {
+                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
+                                    = match ui_state.selected_port.clone() {
                                         // in case there is a user-selected port, use it
                                         Some(port) => Some(port),
                                         // otherwise use the first available port
@@ -444,24 +401,27 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 ui.label("Available Ports");
                                 for i in ports.iter() {
                                     // Create a selectable label for each port
-                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), i.to_string())).clicked() { 
-                                        *ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
+                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
+                                                                                i.to_string())).clicked() { 
+                                        ui_state.selected_port = Some(i.clone())
+                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
                                     }
                                 };
                                 // one selectable per version
                                 ui.label("Version");
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
-                                    *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Pro);
+                                    ui_state.selected_version = Some(YLabVersion::Pro);
                                 }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
-                                  *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Go);
+                                    ui_state.selected_version = Some(YLabVersion::Go);
                                 }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
-                                    *ystud.ui.selected_version.lock().unwrap() = Some(YLabVersion::Mini);
+                                    ui_state.selected_version = Some(YLabVersion::Mini);;
                                 }
                                 // The button is only shown when version and port are selected (which currently is by default).
                                 // It commits the connection command to the YLab thread.
-                                match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
+                                //match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
+                                match (ui_state.selected_version, ui_state.selected_port.clone())  {
                                     (Some(version), Some(port)) 
                                         =>  if ui.button("Connect")
                                                 .on_hover_text("Connect to YLab")
