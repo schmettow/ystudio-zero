@@ -202,14 +202,18 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.label(format!("still buffering ... {}%", incoming_size/fft_size * 100));
                         return
                     }
-                    match (ystud.ylab_state.lock().unwrap().clone()) {
-                        (YLabState::Reading {version, port_name: _}) 
+                    match ystud.ylab_state.lock().unwrap().clone() {
+                        YLabState::Reading {version, port_name: _} 
                         => {// Split inconing YTF history into a sample vector
                             let mut ytf8 = incoming.values();
                             let fft_size = version.fft_size();
                             let mut samples: Vec<f32> = Vec::with_capacity(fft_size);
-                            for i in 0..fft_size {
+                            // collecting the fft data
+                            for _ in 0..fft_size {
+                                // using the low-level iterator
                                 match ytf8.next(){
+                                    // For FFT we need the data in the exact size
+                                    // so we check the result of the iterator
                                     None => {println!("FFT buffer underrun")},
                                     Some(sample) => {samples.push(sample.read[0] as f32)}
                                 }
@@ -233,8 +237,8 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 Err(e) => {println!("{:?}", e);},
                                 Ok(spectrum) => {
                                     let mut points = Vec::new();
-                                    for (i, (fr, fr_val)) 
-                                    in spectrum.data().iter().enumerate() {
+                                    for (fr, fr_val) 
+                                    in spectrum.data().iter() {
                                         points.push([fr.val() as f64, fr_val.val() as f64]);
                                     }
                                     ui.label(format!("Strongest frequencies: {}", spectrum.max().0));
@@ -319,8 +323,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         let nyquist = sample_rate/2.; 
                         let low_limit = duration/2.; 
                         
-                        ui.label(format!("{} Hz", (sample_rate) as usize));
-
+                        ui.label(format!("{} Hz per channel", sample_rate as usize));
+                        ui.heading("Signal Processing");
                         // Slider for low-pass filter
                         ui.label("Low-pass filter (Hz)");
                         //let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap(); 
@@ -356,10 +360,12 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
                             println!("Cmd: Stop")};
                         
+                        ui.heading("Recording");
                         // Start or stop recording
+                        // asking the state of recording thread
                         let yldest_state = ystud.yldest_state.lock().unwrap().clone();
                         match yldest_state {
-                            YldestState::Idle{ dir: Some(dir) }
+                            YldestState::Idle{ dir: Some(_dir) }
                             => {
                                 ui.label("Idle");
                                 if ui.button("New Rec").on_hover_text("Start a new recording").clicked() {
@@ -416,7 +422,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     ui_state.selected_version = Some(YLabVersion::Go);
                                 }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Mini);;
+                                    ui_state.selected_version = Some(YLabVersion::Mini);
                                 }
                                 // The button is only shown when version and port are selected (which currently is by default).
                                 // It commits the connection command to the YLab thread.
@@ -439,6 +445,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 #[allow(unused_imports)]
 use egui_file::FileDialog;
 
+#[allow(dead_code)]
 pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::SidePanel::left("left_side_panel")
         .show(ctx, |ui| {
