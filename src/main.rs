@@ -46,8 +46,6 @@ fn main() {
         = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
     let ytf_wind 
         = Arc::new(Mutex::new(History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0)));
-    
-    //let (mut ytf_out, ytf_in) = spmc::channel();
 
     let ystud = Ystudio {
         ylab_state: ylab_state.clone(),
@@ -56,23 +54,13 @@ fn main() {
         yldest_cmd,
         yld_wind: yld_wind.clone(),
         ytf_wind: ytf_wind.clone(),
-        ui: Yui {
-            selected_port: Arc::new(Mutex::new(None)),
-            selected_version: Arc::new(Mutex::new(None)),
-            selected_channels: Arc::new(Mutex::new([false; 8])),
-            lowpass_threshold: Arc::new(Mutex::new(55.0)),
-            lowpass_burnin: Arc::new(Mutex::new(0.0)),
-            frequency_range: Arc::new(Mutex::new(spectrum_analyzer::FrequencyLimit::Range(1.0, 55.0))), // <- not used
-        },
-        // experimental: Can we go with a global lock?
-        ui2: Arc::new(Mutex::new(Yui2 {
-            selected_port: None,
-            selected_version: None,
-            selected_channels: [false; 8],
-            lowpass_threshold: 40.0,
-            lowpass_burnin: 0.0,
-            fft_min: 2.0,
-            fft_max: 15.0,
+        ui: Arc::new(Mutex::new(Yui {
+                selected_port: None,
+                selected_version: None,
+                selected_channels: [false; 8],
+                lowpass_threshold: 45.,
+                fft_min: 0.5,
+                fft_max: 55.,
         })),
     };
 
