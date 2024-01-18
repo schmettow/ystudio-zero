@@ -11,11 +11,6 @@ pub use std::path::PathBuf;
 
 use log::{info, warn};
 
-
-
-//use egui::epaint::tessellator::Path;
-//use serialport::SerialPort;
-
 /// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -38,7 +33,7 @@ impl YLabVersion {
         }
     }
 
-    pub fn fft_buffer(&self) -> usize {
+    pub fn fft_size(&self) -> usize {
         match *self {
             YLabVersion::Pro => 1024,
             YLabVersion::Go => 512,
@@ -71,15 +66,16 @@ pub type LockedSerial = Arc<Mutex<Option<Box<dyn serialport::SerialPort + 'stati
 pub type LockedBufReader = Arc<Mutex<Option<BufReader<Box<dyn serialport::SerialPort + 'static>>>>>;
 
 /// YLab state
-/// Optional list of serial port names
+/// + Optional list of serial port names
 pub type AvailablePorts = Option<Vec<String>>;
+/// + set of states for the YLab reader
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabState {
     Disconnected {ports: AvailablePorts},
     Connected {version: YLabVersion, port_name: String},
     Reading {version: YLabVersion, port_name: String},
 }
-
+/// + set of commands to control the YLab
 #[derive(PartialEq, Debug, Clone)]
 pub enum YLabCmd {
     Disconnect,
@@ -90,8 +86,6 @@ pub enum YLabCmd {
 
 
 /// YLab thread
-
-
 use std::sync::*;
 use std::thread;
 use std::time::Duration;
@@ -110,15 +104,18 @@ use self::data::Ytf8;
 
 
 pub fn ylab_thread(
-    ylab_state: Arc<Mutex<YLabState>>,
-    ylab_listen: mpsc::Receiver<YLabCmd>,
-    yld_wind: Arc<Mutex<History<data::Yld>>>,
-    ytf_wind: Arc<Mutex<History<data::Ytf8>>>,
-    yld_st: mpsc::Sender<data::Yld>,
+    ylab_state: Arc<Mutex<YLabState>>, // shared state
+    ylab_listen: mpsc::Receiver<YLabCmd>,  // receiving comands
+    yld_wind: Arc<Mutex<History<data::Yld>>>, // Yld history shared with UI and storage
+    ytf_wind: Arc<Mutex<History<data::Ytf8>>>, // Ytf8 history to share with UI
+    yld_st: mpsc::Sender<data::Yld>, // sending data to storage
     ) -> ! {
     
+    // Preparing serial port and buffer
     let serialport: LockedSerial = Arc::new(Mutex::new(None));
     let bufreader: LockedBufReader = Arc::new(Mutex::new(None));
+
+    // Unique time stamp and offset
     let start_time = Instant::now();
 
     loop {
@@ -126,6 +123,9 @@ pub fn ylab_thread(
         let this_ylab_state = ylab_state.lock().unwrap().clone();
         let this_cmd = ylab_listen.try_recv().ok();
         // match the current state and do the transitions
+
+        // state changes on command
+        // beautiful!
         match (this_ylab_state, this_cmd){
             // initit condition: no port selected
             (YLabState::Disconnected { ports: None }, 
