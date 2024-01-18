@@ -9,8 +9,6 @@ pub use std::time::Instant;
 #[allow(unused_imports)]
 pub use std::path::PathBuf;
 
-use log::{info, warn};
-
 /// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -90,8 +88,6 @@ use std::sync::*;
 use std::thread;
 use std::time::Duration;
 use egui::emath::History;
-
-use self::data::Ytf8;
 
 
 /// Task for reading data from serial port
@@ -244,9 +240,7 @@ pub fn ylab_thread(
 /// YLab DATA
 
 pub mod data {
-    pub use std::error::Error;
     use std::time::Duration;
-    
     use egui::util::History;
     /// YLab Long Data
     /// 
@@ -283,8 +277,6 @@ pub mod data {
     }
 
     pub type _YldBuf = Vec<Yld>;
-    pub use egui_plot::PlotPoints;
-    
     /// Multi lines are a fixed array of vectors of xy points.
     pub type MultiLines<const N: usize> = [Vec<[f64; 2]>; 8];
 
