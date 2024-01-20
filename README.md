@@ -1,31 +1,47 @@
 # Ystudio Zero
 
-lays the groundwork for capturing, visualizing and analyzing
-real time data obtained from Ylab sensors. 
+YLab Edge is a set of firmwares for capturing biosignals with 
+easy-to-build micro controller systems. Ystudio is a desktop user interface 
+to capture and visualize biosignals. It currently supports YLab Edge  [Pro](../ylab-edge-pro/), [Go](../ylab-edge-go/) and [Mini](../ylab-edge-go/).
 
-It uses Egui for a light-weight and portable user interface and 
-the architecture is already multi-threading. This will allow to collect 
-from multiple sources simultaneously.
+The following features are currently supported:
 
-Once Ystudio Zero is finished, more specialized applications can
-be developed after its blueprint.
++   painless connection to YLab systems with automatic configuration
++   raw signal view, with adjustable low-pass filter
++   real-time spectrogram using channel-wise FFT
++   Recording in long format.
 
-*funded by WSV Innovation Funds University of Twente*
+## Technical description
 
-# Installation 
+Ystudio uses Egui for the user interface. The architecture is multi-threaded and 
+contains *three main tasks*:
 
-## Developer
++   the user interface
++  *YLab* connects to the serialport, reads the indoming data and sends 
+    it to the ui and the recording compnent
++  *Yst* is the storage task, receiving data and writing it to files.
+
+## Funding
+
+Ystudio is funded by *WSV Innovation Funds, University of Twente*
+
+## Installation 
+
+### Developer
 
 1. Install the Rust tool chain: https://rustup.rs/
 2. Clone this repository using your favorite editor or the command line: `git clone
 3. Build and run the project: `cargo run`
 
-## End User
+### End User
 
-!coming_soon(): End user downloads for Windows, Mac and Linux.
+Create a directory on your computer, where you want to store the data. Download the .exe file and put it into this directory. Double-click on the program to start.
+[Ystudio Zero for Windows](target/release/ystudio-zero.exe)
+
+coming_soon: downloads for Mac and Linux.
 
 
-# Usage
+## Usage
 
 1. Connect your Ylab sensor to your computer
 2. Select the correct serial port in the dropdown menu
@@ -33,15 +49,6 @@ be developed after its blueprint.
 4. Press the `Connect` button
 5. Press the `Read` button
 6. Use the check boxes to select the channels you want to see
-
-# !todo()
-
-+ Match the check boxes to line colors (and keep them fixed)
-+ *Storage* is mostly implemented, but not yet functional on the GUI side. 
-+ Use a buffer for Yldest to avoid high frequency disk writes.
-+ The user navigation does not have a full path back (Stop -> Disconnect -> Connect -> Read)
-+ Split the 
-
 
 # Technical details
 
