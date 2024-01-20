@@ -106,6 +106,8 @@ pub fn egui_init(ystud: Ystudio) {
 
 /// updates the plotting area
 /// 
+/// + one line per active channel
+/// + reading the Yld stream
 pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) 
 {   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
@@ -114,9 +116,9 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
             YLabState::Reading {version: _, port_name: _} 
             => {// Split inconing history into points series
                 // TODO: change to the way we do it with FFT samples, using Ytf8 stream.
-                let incoming: egui::util::History<data::Yld> = ystud.yld_wind.lock().unwrap().clone();
-                let series 
-                    = incoming.split();
+                let incoming: egui::util::History<data::Yld> 
+                    = ystud.yld_wind.lock().unwrap().clone();
+                let series  = incoming.split();
                 plot = plot
                         .auto_bounds_x()
                         .include_y(0.0) 
