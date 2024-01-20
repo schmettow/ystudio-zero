@@ -23,14 +23,6 @@ impl YLabVersion {
         }
     }
 
-    pub fn min_buffer(&self) -> usize {
-        match *self {
-            YLabVersion::Pro => 1024,
-            YLabVersion::Go => 512,
-            YLabVersion::Mini => 128,
-        }
-    }
-
     pub fn fft_size(&self) -> usize {
         match *self {
             YLabVersion::Pro => 1024,
