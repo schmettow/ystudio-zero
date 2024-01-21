@@ -115,15 +115,16 @@ pub fn ylab_thread(
         // state changes on command
         // beautiful!
         match (this_ylab_state, this_cmd){
-            // initit condition: no port selected
-            (YLabState::Disconnected { ports: None }, 
-             None) 
+            // Waiting for available ports and command
+            (YLabState::Disconnected { ports: _ }, 
+             None)
             => {
                 let avail_ports = serialport::available_ports().ok();
+                // incorrect! problem: There is often a keyboard on serial, so it is never empty.
                 match avail_ports {
                     None => { 
                         // no ports: try again in 500ms, no transition
-                        thread::sleep(Duration::from_millis(500));},
+                    },
                     Some(found) => {
                         // ports found: transition to Disconnected with available ports
                         let port_names 
@@ -131,9 +132,12 @@ pub fn ylab_thread(
                                 .collect::<Vec<String>>();
                         // automatically proceed to Disconnected with available ports
                         *ylab_state.lock().unwrap() = YLabState::Disconnected{
-                                                        ports: Some(port_names)};},}
+                                                        ports: Some(port_names)};
+                    },
+                }
+                thread::sleep(Duration::from_millis(100));
                 },
-        
+            
             (YLabState::Disconnected { ports: Some(_) }, 
              Some(YLabCmd::Connect { version, port_name })) 
             => { 
