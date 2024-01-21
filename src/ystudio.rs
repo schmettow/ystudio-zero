@@ -114,68 +114,72 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         let ui_state = ystud.ui.lock().unwrap();
         match ystud.ylab_state.lock().unwrap().clone() {
             YLabState::Reading {version: _, port_name: _} 
-            => {// Split inconing history into points series
-                // TODO: change to the way we do it with FFT samples, using Ytf8 stream.
+            => {// Handle an empty buffer
                 let incoming: egui::util::History<data::Yld> 
                     = ystud.yld_wind.lock().unwrap().clone();
-                let series  = incoming.split();
+                if incoming.is_empty() {
+                    ui.label(format!("buffer empty"));
+                    return
+                }
+                // Split inconing history into points series
+                // TODO: change to the way we do it with FFT samples, using Ytf8 stream.
                 plot = plot
                         .auto_bounds_x()
                         .include_y(0.0) 
                         .auto_bounds_y()
                         .legend(egui_plot::Legend::default());
-                // Plot lines
-                plot.show(ui, |plot_ui| {
-
-                let selected_channels = ui_state.selected_channels;
-                for (probe, points) in &mut series.clone().iter().enumerate() {
-                    if selected_channels[probe] {
-                        // applying the low-pass filter
-                        use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
-                        let sampling_rate = incoming.rate();
-                        match sampling_rate {
-                            None => {},
-                            Some(rate) => {
-                                // suppress the burn-in phase, dependent on frequency
-                                // Create coefficients for the biquads
-                                let lowpass = ui_state.lowpass_threshold as f32;
-                                let coeffs 
-                                    = Coefficients::<f32>::from_params( Type::LowPass, 
-                                                                        rate.hz(), 
-                                                                        lowpass.hz(), 
-                                                                        Q_BUTTERWORTH_F32);
-                                match coeffs {
-                                    Err(e) => println!("{:?}", e),
-                                    Ok(coeffs) => {
-                                        let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
-                                        let mut biquad_lpf 
-                                                = DirectForm1::<f32>::new(coeffs);
-                                        points  .iter()
-                                                .for_each(|point| filtered_points
-                                                                              .push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
-                                        // 
-                                        let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
-                                        for _ in 0..(burnin as usize) {
-                                            filtered_points.pop_back();
-                                        }
-                                        let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
-                                        plot_ui.line(filtered_line);
-
-                                    }
-                                }
-                                
-                            },
-                        }
-                        
-                        
-                        
+                
+                // Plot lines: CLOSURE
+                plot.show(ui, |plot_ui| 
+                    {                
+                let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer 
+                let series  = incoming.split();
+                for (chan, active) in ui_state.selected_channels.iter().enumerate() {
+                    // empty line if inactive
+                    if !active {
+                        let points: Vec<[f64; 2]> = Vec::new();
+                        //points.push([0., 0.]);
+                        let empty_line = egui_plot::Line::new(PlotPoints::new(points));
+                        plot_ui.line(empty_line);
+                        continue
                     }
+                    
+                    // active channels
+                    let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
+                    use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
+                    let lowpass = ui_state.lowpass_threshold as f32;
+                    let coeffs 
+                        = Coefficients::<f32>::from_params( Type::LowPass, 
+                                                            rate.hz(), 
+                                                            lowpass.hz(), 
+                                                            Q_BUTTERWORTH_F32);
+                    
+                    match coeffs {
+                        Err(e) => println!("{:?}", e),
+                        Ok(coeffs) => {
+                            
+                            let mut biquad_lpf 
+                                    = DirectForm1::<f32>::new(coeffs);
+                            series[chan].iter()
+                                    .for_each(|point| filtered_points
+                                                                    .push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+                            // Calculate lowpass burnin
+                            let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
+                            // removing the burnin period, changes scrolling speed
+                            for _ in 0..(burnin as usize) {
+                                filtered_points.pop_back();
+                            }
+                            // PLot the line
+                            let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
+                            plot_ui.line(filtered_line);
+
+                        }
+                    }     
                 }
-        });
+            });
             },
             _ => {},
         }
-        
     });
 }
 
@@ -186,11 +190,10 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
         .show(ctx, |ui| {
             ui.heading("Distribution of Frequencies");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
-            // using a global lock
             let ui_state = ystud.ui.lock().unwrap();
             
             match ylab_state {
-                // show New button when Reading and Idle
+                // Plot a spectrogramm
                 YLabState::Reading {version, port_name:_}
                 => {// configuring the plot
                     use spectrum_analyzer::scaling::divide_by_N;
@@ -225,12 +228,22 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         }
                     } 
                     
+                    
                     // CLOSURE TIME!! Mind the brackets.
                     plot.show(ui, |plot_ui| {
-                        for sample in samples.iter(){
+                        for (chan, sample) in samples.iter().enumerate(){
+                            let mut points = Vec::new();
+                            // empty line for inactive channels
+                            if !ui_state.selected_channels[chan] {
+                                let line = egui_plot::Line::new(PlotPoints::new(points));
+                                plot_ui.line(line);
+                                continue
+                            }
+
+                            // Acive channel
                             let hann_window = hann_window(sample.as_slice());
                             // get frequency limits from ui
-                            let freq_range 
+                            let freq_range
                                 = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
                             // compute the possible power spectrum
                             let spectrum 
@@ -241,12 +254,11 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     Some(&divide_by_N),);
                             // plotting with error handling
                             match spectrum {
-                                Err(e) => {println!("{:?}", e);},
+                                Err(e) => {println!("FFT: {:?}", e);},
                                 Ok(spectrum) => {
-                                    let mut points = Vec::new();
-                                    for (fr, fr_val) 
+                                    for (freq, ampl) 
                                     in spectrum.data().iter() {
-                                        points.push([fr.val() as f64, fr_val.val() as f64]);
+                                        points.push([freq.val() as f64, ampl.val() as f64]);
                                     }
                                     let line = egui_plot::Line::new(PlotPoints::new(points));
                                     plot_ui.line(line);
@@ -363,9 +375,11 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             YldestState::Idle{ dir: Some(_dir) }
                             => {
                                 ui.label("Idle");
-                                if ui.button("New Rec").on_hover_text("Start a new recording").clicked() {
-                                    let dir = std::env::current_dir().unwrap();
-                                    ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
+                                if ui.button("New Rec")
+                                    .on_hover_text("Start a new recording")
+                                    .clicked() {
+                                        let dir = std::env::current_dir().unwrap();
+                                        ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
                                 }
                             },
                             YldestState::Recording { path }
