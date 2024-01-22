@@ -103,6 +103,19 @@ pub fn egui_init(ystud: Ystudio) {
     ).unwrap();
 }
 
+use egui::ecolor::Color32;
+const LINE_COLORS: [Color32; 8] 
+    = [Color32::BLACK,
+       Color32::DARK_BLUE,
+       Color32::DARK_GREEN,
+       Color32::DARK_RED,
+       Color32::DARK_GRAY,
+       Color32::BLUE,
+       Color32::GREEN,
+       Color32::RED
+        ];
+
+
 
 /// updates the plotting area
 /// 
@@ -135,16 +148,16 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer 
                 let series  = incoming.split();
                 for (chan, active) in ui_state.selected_channels.iter().enumerate() {
-                    // empty line if inactive
+                    // inactive channels
                     if !active {
-                        let points: Vec<[f64; 2]> = Vec::new();
+                        /* let points: Vec<[f64; 2]> = Vec::new();
                         //points.push([0., 0.]);
                         let empty_line = egui_plot::Line::new(PlotPoints::new(points));
-                        plot_ui.line(empty_line);
+                        plot_ui.line(empty_line);*/
                         continue
                     }
                     
-                    // active channels
+                    // processing active channels
                     let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
                     use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
                     let lowpass = ui_state.lowpass_threshold as f32;
@@ -157,7 +170,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     match coeffs {
                         Err(e) => println!("{:?}", e),
                         Ok(coeffs) => {
-                            
                             let mut biquad_lpf 
                                     = DirectForm1::<f32>::new(coeffs);
                             series[chan].iter()
@@ -170,7 +182,8 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                 filtered_points.pop_back();
                             }
                             // PLot the line
-                            let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()));
+                            let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()))
+                                .color(LINE_COLORS[chan]);
                             plot_ui.line(filtered_line);
 
                         }
@@ -344,7 +357,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             
                         // Sliders for FFT range
                         ui.label("FFT min (Hz)");
-                        let min_range = 0. ..=(nyquist - 2.);
+                        let min_range = 0. ..=(nyquist - 5.);
                         let fft_min_slider 
                             = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
                             .clamp_to_range(true)
@@ -353,7 +366,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.add(fft_min_slider);
 
                         ui.label("FFT max (Hz)");
-                        let max_range = (ui_state.fft_min + 2.)..=nyquist - 2.;
+                        let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
                         let fft_max_slider 
                             = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
                             .clamp_to_range(true)

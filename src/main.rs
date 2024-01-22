@@ -60,7 +60,7 @@ fn main() {
                 selected_channels: [false; 8],
                 lowpass_threshold: 45.,
                 fft_min: 0.5,
-                fft_max: 55.,
+                fft_max: 40.,
         })),
     };
 
