@@ -315,14 +315,14 @@ pub mod data {
     }
 
     /// YTF 8 implementation
+    pub type Ytf8 = Ytf<8, f64>;
 
-
-    #[derive(Copy, Clone, Debug)]
+    /*#[derive(Copy, Clone, Debug)]
     pub struct Ytf8 {
         pub dev: i8,
         pub time: i64,
         pub read: [f64;8],
-    }
+    }*/
     
     /// Error types for parsing CSV lines
     #[derive(Clone, Debug,)]
@@ -355,8 +355,13 @@ pub mod data {
             // check correct length
             if cols.len() != 10 {return Err(ParseError::Len(cols.len()))};
             // extract time stamp
-            let time = cols[0].parse::<i64>();
-            if time.is_err() {return Err(ParseError::Time(cols[0].to_string()))}
+            //let millis = cols[0].parse::<i64>();
+            let time: Duration;
+            match cols[0].parse::<i64>() {
+                Ok(millis) => {time = Duration::from_millis(millis.try_into().unwrap())},
+                Err(_) => return Err(ParseError::Time(cols[0].to_string())),
+                }
+            
             // extract dev number
             let dev = cols[1].parse::<i8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
@@ -372,14 +377,14 @@ pub mod data {
                 }
             }
             Ok(Ytf8{dev: dev.unwrap(), 
-                        time: time.unwrap() as i64, 
+                        time: time, 
                         read: read})
         }
 
         #[allow(dead_code)]
         pub fn to_csv_line(&self) -> String {
             let out: String = 
-                [[self.time.to_string(), self.dev.to_string()]
+                [[self.time.as_millis().to_string(), self.dev.to_string()]
                     .join(","),
                   self.read
                     .map(|r|{r.to_string()})
@@ -409,7 +414,7 @@ pub mod data {
     
     impl Default for Ytf8 {
         fn default() -> Self {
-            Self {dev: 0, time: 0, read: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+            Self {dev: 0, time: Duration::from_millis(0), read: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
         }
     }
 }
