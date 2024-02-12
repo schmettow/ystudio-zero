@@ -336,8 +336,13 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         // Check for buffer under-run
                         if buffer_size < version.fft_size() {
                             ui.label("still buffering");
+                            if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
+                                ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
+                                println!("Cmd: Stop")};
                             return;
                         }
+                        
+                        
                         let duration = yld_wind.duration() as f64;
                         let sample_rate = buffer_size as f64/duration;
                         let nyquist = sample_rate/2.; 
