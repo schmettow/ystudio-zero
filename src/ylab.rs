@@ -15,7 +15,7 @@ pub use std::path::PathBuf;
 pub enum YLabVersion {Pro, Go, Mini}
 
 impl YLabVersion {
-    pub fn baud(&self) -> i32 {
+    pub fn baud(&self) -> u32 {
         match *self {
             YLabVersion::Pro => 2_000_000,
             YLabVersion::Go => 1_000_000,
@@ -28,6 +28,14 @@ impl YLabVersion {
             YLabVersion::Pro => 1024,
             YLabVersion::Go => 512,
             YLabVersion::Mini => 128,
+        }
+    }
+
+    pub fn banks(&self) -> u8 {
+        match *self {
+            YLabVersion::Pro => 1,
+            YLabVersion::Go => 2,
+            YLabVersion::Mini => 1,
         }
     }
 }

@@ -58,6 +58,7 @@ fn main() {
         ui: Arc::new(Mutex::new(Yui {
                 selected_port: None,
                 selected_version: None,
+                selected_bank: None,
                 selected_channels: [false; 8],
                 lowpass_threshold: 45.,
                 fft_min: 0.5,

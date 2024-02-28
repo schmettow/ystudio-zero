@@ -75,6 +75,7 @@ pub struct Ystudio {
 pub struct Yui {
     pub selected_port: Option<String>,
     pub selected_version: Option<YLabVersion>,
+    pub selected_bank: Option<u8>,
     pub selected_channels: [bool; 8],
     pub lowpass_threshold: f64,
     pub fft_min: f64,
