@@ -43,10 +43,23 @@ fn main() {
         = channel();
     
     // data sliding window for plotting
+    let mut hist_8: Vec<History<Ytf8>> =
+    vec![History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
+        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0)];
+    
+
+    let ytf_wind 
+        = Arc::new(Mutex::new(hist_8));
+
     let yld_wind 
         = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
-    let ytf_wind 
-        = Arc::new(Mutex::new(History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0)));
+
 
     let ystud = Ystudio {
         ylab_state: ylab_state.clone(),
@@ -58,8 +71,8 @@ fn main() {
         ui: Arc::new(Mutex::new(Yui {
                 selected_port: None,
                 selected_version: None,
-                selected_bank: None,
-                selected_channels: [false; 8],
+                selected_channels: [false; 8], // <-- crashes, when differently
+                selected_bank: [false; 8],
                 lowpass_threshold: 45.,
                 fft_min: 0.5,
                 fft_max: 40.,
