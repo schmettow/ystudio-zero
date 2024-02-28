@@ -47,7 +47,7 @@ pub struct Ystudio {
     pub yldest_state: Arc<Mutex<YldestState>>, // shared state
     pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
     pub yld_wind: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
-    pub ytf_wind: Arc<Mutex<History<Ytf8>>>, // data stream, sort of temporal vecdeque
+    pub ytf_wind: Arc<Mutex<Vec<History<Ytf8>>>>, // data stream, sort of temporal vecdeque
     pub ui: Arc<Mutex<Yui>>, // ui parameters with outer lock, more convenient
 }
 
@@ -75,7 +75,7 @@ pub struct Ystudio {
 pub struct Yui {
     pub selected_port: Option<String>,
     pub selected_version: Option<YLabVersion>,
-    pub selected_bank: Option<u8>,
+    pub selected_bank: [bool; 8],
     pub selected_channels: [bool; 8],
     pub lowpass_threshold: f64,
     pub fft_min: f64,
@@ -126,11 +126,11 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
 {   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         let ui_state = ystud.ui.lock().unwrap();
+    
         match ystud.ylab_state.lock().unwrap().clone() {
-            YLabState::Reading {version: _, port_name: _} 
+            YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
-                let incoming: egui::util::History<data::Yld> 
-                    = ystud.yld_wind.lock().unwrap().clone();
+                let incoming= ystud.yld_wind.lock().unwrap().clone();
                 if incoming.is_empty() {
                     ui.label(format!("buffer empty"));
                     return
@@ -224,7 +224,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     // exact size of data window for FFT
                     let fft_size = version.fft_size();
                     // fetching data from YLab
-                    let incoming = ystud.ytf_wind.lock().unwrap().clone();
+                    let incoming = &ystud.ytf_wind.lock().unwrap().clone()[0]; // <---- CHANGE THIS
                     // Handling buffer under-runs
                     let incoming_size = incoming.len();
                     if incoming_size < fft_size {
@@ -306,7 +306,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             let selected_version 
                 = match ui_state.selected_version.clone() {
                     Some(version) => version,
-                    None => YLabVersion::Pro,};
+                    None => YLabVersion::Go,};
             
             match ylab_state.clone() {
                 // Connected to YLab by selecting port and version
@@ -325,12 +325,21 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
 
+                        // Bank selector
+                        ui.heading("Banks");
+                        //println!("Banks");
+                        let banks = version.bank_labels();
+                        println!("Selected Banks");
+                        for (bank, label) in  banks.iter().enumerate() {
+                            ui.checkbox( &mut ui_state.selected_bank[bank], label.to_string());
+                        };
+                        
+                        
                         // Selecting channels to plot
                         ui.heading("Channels");
                         let selected_channels = ui_state.selected_channels;
-                        for (chan, _) in  selected_channels.iter().enumerate() {
-                            ui.checkbox( &mut ui_state.selected_channels[chan], 
-                                                    chan.to_string());
+                        for (chan, label) in  selected_channels.iter().enumerate() {
+                            ui.checkbox( &mut ui_state.selected_channels[chan], chan.to_string());
                         };
 
                         let buffer_size = yld_wind.len()/8;
