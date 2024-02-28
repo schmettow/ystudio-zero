@@ -31,11 +31,11 @@ impl YLabVersion {
         }
     }
 
-    pub fn banks(&self) -> u8 {
+    pub fn bank_labels(&self) -> Vec<&str> {
         match *self {
-            YLabVersion::Pro => 1,
-            YLabVersion::Go => 2,
-            YLabVersion::Mini => 1,
+            YLabVersion::Pro => vec!["ADC", "I2C0", "I2C1", "I2C2"],
+            YLabVersion::Go => vec!["ADC", "I2C0", "I2C1"],
+            YLabVersion::Mini => vec!["ADC"],
         }
     }
 }
@@ -103,7 +103,7 @@ pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>, // shared state
     ylab_listen: mpsc::Receiver<YLabCmd>,  // receiving comands
     yld_wind: Arc<Mutex<History<data::Yld>>>, // Yld history shared with UI and storage
-    ytf_wind: Arc<Mutex<History<data::Ytf8>>>, // Ytf8 history to share with UI
+    ytf_wind: Arc<Mutex<Vec<History<data::Ytf8>>>>, // Ytf8 history to share with UI
     yld_st: mpsc::Sender<data::Yld>, // sending data to storage
     ) -> ! {
     
@@ -183,7 +183,7 @@ pub fn ylab_thread(
                     port_name: port_name.clone()};
                 },
             
-            (YLabState::Reading {version:_, port_name:_, }, 
+            (YLabState::Reading {version, port_name:_, }, 
             None) 
                 // We are already in a fast loop, so we read one line at a time.
                 =>  {let mut reader = bufreader.lock().unwrap();
@@ -203,14 +203,18 @@ pub fn ylab_thread(
                                         Err(_) => {continue}
                                         // Ytf8 line,
                                         Ok(sample) => {
-                                            let ystudio_time =Instant::now().duration_since(start_time);
-                                            ytf_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), sample.clone());
-                                            //ytf_out.send(sample).unwrap();
+                                            let ystudio_time = Instant::now().duration_since(start_time);
+                                            let bank = sample.dev;
+                                            if (bank as usize) < version.bank_labels().len() {
+                                                ytf_wind.lock().unwrap()[bank as usize].add(ystudio_time.as_secs_f64(), sample.clone());
+                                                //ytf_out.send(sample).unwrap();
+                                                }
                                             let yld = sample.to_unit().to_yld(ystudio_time);
                                             for measure in yld.iter() {
                                                 yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
                                                 yld_st.send(measure.clone()).unwrap();
-                                            }}
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -317,7 +321,7 @@ pub mod data {
     
     #[derive(Copy, Clone, Debug)]
     pub struct Ytf<const N: usize, T>  {
-        pub dev: i8,
+        pub dev: u8,
         pub time: Duration,
         pub read: [T;N],
     }
@@ -371,7 +375,7 @@ pub mod data {
                 }
             
             // extract dev number
-            let dev = cols[1].parse::<i8>();
+            let dev = cols[1].parse::<u8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
             // reading the remaining 8 cols
             let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
