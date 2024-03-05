@@ -135,6 +135,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     ui.label(format!("buffer empty"));
                     return
                 }
+                ui.label(format!("Bank {}", ui_state.selected_bank));
                 // Split inconing history into points series
                 // TODO: change to the way we do it with FFT samples, using Ytf8 stream.
                 plot = plot
@@ -224,7 +225,9 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     // exact size of data window for FFT
                     let fft_size = version.fft_size();
                     // fetching data from YLab
-                    let incoming = &ystud.ytf_wind.lock().unwrap().clone()[0]; // <---- CHANGE THIS
+                    let incoming 
+                        = &ystud.ytf_wind.lock().unwrap().clone()
+                            [ui_state.selected_bank as usize]; 
                     // Handling buffer under-runs
                     let incoming_size = incoming.len();
                     if incoming_size < fft_size {
@@ -326,9 +329,11 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.label(format!("{}:{}", version, port_name));
 
                         // Bank selector
-                       /* ui.heading("Banks");
-                        let bank_slider 
-                            = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=8)
+                        ui.heading("Banks");
+                        ui.add(egui::Slider::new(&mut ui_state.selected_bank, 0..=8).text("Bank"));
+
+                        /*let bank_slider: egui::Slider<'_> 
+                            = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=7)
                             .clamp_to_range(true)
                             .fixed_decimals(0);*/
                         

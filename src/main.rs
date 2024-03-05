@@ -42,7 +42,8 @@ fn main() {
     let (yldest_send, yldest_rec) 
         = channel();
 
-    let ytf_wind = Arc::new(Mutex::new(make_banks(8, 5.0, YTF_WIND_LEN)));
+    let ytf_wind 
+        = Arc::new(Mutex::new(make_banks(8, 5.0, YTF_WIND_LEN)));
     let yld_wind 
         = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
 
