@@ -5,11 +5,11 @@
 
 pub use std::fmt;
 pub use std::time::Instant;
-
+pub use std::sync::{Arc, Mutex};
 #[allow(unused_imports)]
 pub use std::path::PathBuf;
 
-pub const YLAB_EPOCH: usize = 1704063600;
+pub const _YLAB_EPOCH: usize = 1704063600;
 
 /// YLab version
 
@@ -88,8 +88,10 @@ pub enum YLabCmd {
 /// YLab thread
 use std::sync::*;
 use std::thread;
+#[allow(unused_imports)]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use egui::emath::History;
+
 
 
 /// Task for reading data from serial port
@@ -99,13 +101,11 @@ use egui::emath::History;
 /// ylab_listen is used for listening to commands
 /// 
 
-
-
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>, // shared state
     ylab_listen: mpsc::Receiver<YLabCmd>,  // receiving comands
-    yld_wind: Arc<Mutex<History<data::Yld>>>, // Yld history shared with UI and storage
-    ytf_wind: Arc<Mutex<Vec<History<data::Ytf8>>>>, // Ytf8 history to share with UI
+    yld_wind: Arc<Mutex<History<data::Yld>>>, // Yld history shared with UI (FFT) and storage
+    ytf_wind: Arc<Mutex<data::Banks>>, // Ytf8 history to share with UI (plot)
     yld_st: mpsc::Sender<data::Yld>, // sending data to storage
     ) -> ! {
     
@@ -206,14 +206,16 @@ pub fn ylab_thread(
                                         // Ytf8 line,
                                         Ok(sample) => {
                                             let ystudio_time = Instant::now().duration_since(start_time);
-                                            let bank = sample.dev;
+                                            let bank = sample.sensory;
                                             if (bank as usize) < version.bank_labels().len() {
-                                                ytf_wind.lock().unwrap()[bank as usize].add(ystudio_time.as_secs_f64(), sample.clone());
-                                                //ytf_out.send(sample).unwrap();
-                                                }
-                                            let yld = sample.to_unit().to_yld(ystudio_time);
+                                                ytf_wind.lock().unwrap()[bank as usize]
+                                                        .add(ystudio_time.as_secs_f64(), sample.clone());
+                                            //ytf_out.send(sample).unwrap();
+}
+                                            let yld = sample.to_yld(ystudio_time);
                                             for measure in yld.iter() {
-                                                yld_wind.lock().unwrap().add(ystudio_time.as_secs_f64(), measure.clone());
+                                                yld_wind.lock().unwrap()
+                                                        .add(ystudio_time.as_secs_f64(), measure.clone());
                                                 yld_st.send(measure.clone()).unwrap();
                                                 }
                                             }
@@ -250,6 +252,7 @@ pub fn ylab_thread(
 /// YLab DATA
 
 pub mod data {
+    //use super::*;
     use std::time::Duration;
     use egui::util::History;
     /// YLab Long Data
@@ -331,6 +334,22 @@ pub mod data {
 
     /// YTF 8 implementation
     pub type Ytf8 = Ytf<8, f64>;
+    pub type Banks = Vec<History<Ytf8>>;
+
+    /// Create history per bank
+    /// 
+    /// returns a vector with n histories of Ytf8. Is used to
+    /// separate multiple sensor arrays, e.g. by ADC controller or if you
+    /// use multi-variate sensors, such as multiple Yxz.
+
+    pub fn make_banks(n: u8, seconds: f32, max_len: usize) -> Banks {
+        let mut out = Vec::<History<Ytf8>>::new();
+        for _ in 0..n {
+            let new_bank = History::<Ytf8>::new(1..max_len, seconds);
+            out.push(new_bank);
+        }
+        out
+    }
 
     /*#[derive(Copy, Clone, Debug)]
     pub struct Ytf8 {
@@ -348,7 +367,7 @@ pub mod data {
         Time(String)}
     
     /// Result type for parsing CSV lines
-    pub type FailableSample = Result<Ytf8, ParseError>;
+    pub type FailableSample = Result<Ytf8, ParseError>;   
     
 
     /// Methods for YLab data samples
@@ -420,6 +439,8 @@ pub mod data {
             };
             return out
         }
+
+        #[allow(dead_code)]
         pub fn to_unit(mut self) -> Self {
             const MAX: f64 = 32_768.0;
             self.read = self.read.map(|r| r / MAX);
