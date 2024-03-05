@@ -14,13 +14,14 @@ pub const _YLAB_EPOCH: usize = 1704063600;
 /// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum YLabVersion {Pro, Go, Mini}
+pub enum YLabVersion {Pro, Go, GoMotion, Mini}
 
 impl YLabVersion {
     pub fn baud(&self) -> u32 {
         match *self {
             YLabVersion::Pro => 2_000_000,
             YLabVersion::Go => 1_000_000,
+            YLabVersion::GoMotion => 1_000_000,
             YLabVersion::Mini => 125_200,
         }
     }
@@ -29,6 +30,7 @@ impl YLabVersion {
         match *self {
             YLabVersion::Pro => 1024,
             YLabVersion::Go => 512,
+            YLabVersion::GoMotion => 512,
             YLabVersion::Mini => 128,
         }
     }
@@ -37,6 +39,7 @@ impl YLabVersion {
         match *self {
             YLabVersion::Pro => vec!["ADC", "I2C0", "I2C1", "I2C2"],
             YLabVersion::Go => vec!["ADC", "I2C0", "I2C1"],
+            YLabVersion::GoMotion => vec!["ADC", "Yxz_1", "Yxz_2", "Yxz_3", "Yxz_4"],
             YLabVersion::Mini => vec!["ADC"],
         }
     }
@@ -48,6 +51,7 @@ impl fmt::Display for YLabVersion {
         match self {
             YLabVersion::Pro => write!(f, "Pro"),
             YLabVersion::Go => write!(f, "Go"),
+            YLabVersion::GoMotion => write!(f, "Go Motion"),
             YLabVersion::Mini => write!(f, "Mini"),
         }
     }

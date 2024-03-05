@@ -473,6 +473,9 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
                                     ui_state.selected_version = Some(YLabVersion::Go);
                                 }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoMotion, "Go Motion")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::GoMotion);
+                                }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
                                     ui_state.selected_version = Some(YLabVersion::Mini);
                                 }
