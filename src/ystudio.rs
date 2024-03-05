@@ -130,7 +130,12 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         match ystud.ylab_state.lock().unwrap().clone() {
             YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
-                let incoming= ystud.yld_wind.lock().unwrap().clone();
+                /*let incoming= ystud.yld_wind.lock().unwrap().clone();
+                if incoming.is_empty() {
+                    ui.label(format!("buffer empty"));
+                    return
+                }*/
+                let incoming= &ystud.ytf_wind.lock().unwrap().clone()[ui_state.selected_bank as usize];
                 if incoming.is_empty() {
                     ui.label(format!("buffer empty"));
                     return
@@ -145,9 +150,9 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                         .legend(egui_plot::Legend::default());
                 
                 // Plot lines: CLOSURE
-                plot.show(ui, |plot_ui| 
-                    {                
+                plot.show(ui, |plot_ui| {                
                 let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer 
+
                 let series  = incoming.split();
                 for (chan, active) in ui_state.selected_channels.iter().enumerate() {
                     // inactive channels
@@ -330,7 +335,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 
                         // Bank selector
                         ui.heading("Banks");
-                        ui.add(egui::Slider::new(&mut ui_state.selected_bank, 0..=8).text("Bank"));
+                        ui.add(egui::Slider::new(&mut ui_state.selected_bank, 0..=7).text("Bank"));
 
                         /*let bank_slider: egui::Slider<'_> 
                             = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=7)
