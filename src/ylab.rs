@@ -9,6 +9,8 @@ pub use std::time::Instant;
 #[allow(unused_imports)]
 pub use std::path::PathBuf;
 
+pub const YLAB_EPOCH: usize = 1704063600;
+
 /// YLab version
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -78,7 +80,7 @@ pub enum YLabCmd {
 /// YLab thread
 use std::sync::*;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use egui::emath::History;
 
 
@@ -310,6 +312,7 @@ pub mod data {
     #[derive(Copy, Clone, Debug)]
     pub struct Ytf<const N: usize, T>  {
         pub dev: i8,
+        pub sensory: i8,
         pub time: Duration,
         pub read: [T;N],
     }
@@ -328,7 +331,8 @@ pub mod data {
     #[derive(Clone, Debug,)]
     pub enum ParseError {
         Len(usize), 
-        Dev(String), 
+        Dev(String),
+        Sensory(String), 
         Time(String)}
     
     /// Result type for parsing CSV lines
@@ -359,12 +363,15 @@ pub mod data {
             let time: Duration;
             match cols[0].parse::<i64>() {
                 Ok(millis) => {time = Duration::from_millis(millis.try_into().unwrap())},
-                Err(_) => return Err(ParseError::Time(cols[0].to_string())),
+                                Err(_) => return Err(ParseError::Time(cols[0].to_string())),
                 }
             
             // extract dev number
             let dev = cols[1].parse::<i8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
+            // extract sensory number
+            let sensory = cols[1].parse::<i8>();
+            if sensory.is_err() {return Err(ParseError::Sensory(cols[1].to_string()))}
             // reading the remaining 8 cols
             let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
             for chn in 0..8 {
@@ -376,9 +383,7 @@ pub mod data {
                     Err(_) => read[chn] = 0.0
                 }
             }
-            Ok(Ytf8{dev: dev.unwrap(), 
-                        time: time, 
-                        read: read})
+            Ok(Ytf8{dev: dev.unwrap(), sensory: sensory.unwrap(), time: time, read: read})
         }
 
         #[allow(dead_code)]
@@ -398,7 +403,7 @@ pub mod data {
             let mut out: Vec<Yld> = Vec::new();
             let mut chan: i8 = 0;
             for value in self.read.iter() {
-                out.push(Yld{time, dev: 0, sensory: 0, chan: chan, value: *value as f64});
+                out.push(Yld{time, dev: self.dev, sensory:self.sensory, chan: chan, value: *value as f64});
                 chan += 1;
             };
             return out
@@ -414,7 +419,7 @@ pub mod data {
     
     impl Default for Ytf8 {
         fn default() -> Self {
-            Self {dev: 0, time: Duration::from_millis(0), read: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+            Self {dev: 0, sensory:0, time: Duration::from_millis(0), read: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
         }
     }
 }
