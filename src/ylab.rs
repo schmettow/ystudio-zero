@@ -303,7 +303,7 @@ pub mod data {
         fn split(&self) -> MultiLines<8>;
     }
 
-    impl SplitByChan for History<Yld>{
+    /*impl SplitByChan for History<Yld>{
         fn split(&self) -> MultiLines<8> {
             let mut out = new_multi_lines();
             for measure in self.iter() {
@@ -312,6 +312,19 @@ pub mod data {
                 let value = measure.1.value;
                 let point = [time, value];
                 out[chan].push(point);
+            }
+            return out;
+        }
+    }*/
+
+    impl SplitByChan for History<Ytf8>{
+        fn split(&self) -> MultiLines<8> {
+            let mut out = new_multi_lines();
+            for sample in self.iter() {
+                for (chan, value) in sample.1.read.iter().enumerate() {
+                    let point = [sample.0, *value];
+                    out[chan].push(point);
+                }
             }
             return out;
         }
