@@ -36,7 +36,7 @@ Ystudio is funded by *WSV Innovation Funds, University of Twente*
 ### End User
 
 Create a directory on your computer, where you want to store the data. Download the .exe file and put it into this directory. Double-click on the program to start.
-([Ystudio Zero for Windows](raw/main/target/release/ystudio-zero.exe))
+([Ystudio Zero for Windows](https://github.com/schmettow/ystudio-zero/raw/main/target/release/ystudio-zero.exe))
 
 coming_soon: downloads for Mac and Linux.
 
