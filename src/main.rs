@@ -58,7 +58,7 @@ fn main() {
         ui: Arc::new(Mutex::new(Yui {
                 selected_port: None,
                 selected_version: None,
-                selected_channels: [false; 8], // <-- crashes, when differently
+                selected_channels: [true; 8], // <-- crashes, when differently
                 selected_bank: 0,
                 lowpass_threshold: 45.,
                 fft_min: 0.5,
