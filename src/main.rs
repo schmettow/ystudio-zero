@@ -5,7 +5,7 @@ mod ylab;
 mod ystudio;
 
 use ystudio::*;
-use ylab::ylab_thread;
+use ylab::*;
 use yldest::yldest_thread;
 pub use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex};
@@ -24,14 +24,14 @@ use log::{info, warn, debug, error};
 /// fixed window sizes, could be made dynamic at a later point
 const YLD_WIND_LEN:usize = 20_000;
 /// used for FFT, so must be power of two
-const YTF_WIND_LEN:usize = 1024;
+const YTF_WIND_LEN:usize = 1_000_000;
 
 fn main() {
     // states
     let ylab_state 
-        = Arc::new(Mutex::new(ylab::YLabState::Disconnected {ports: None}));
+        = Arc::new(Mutex::new(YLabState::Disconnected {ports: None}));
     let yldest_state 
-        = Arc::new(Mutex::new(yldest::YldestState::Idle{dir: std::env::current_dir().ok()}));
+        = Arc::new(Mutex::new(YldestState::Idle{dir: std::env::current_dir().ok()}));
     
     // command channels
     let (ylab_cmd, ylab_listen) 
@@ -41,22 +41,8 @@ fn main() {
     // data channel for storage
     let (yldest_send, yldest_rec) 
         = channel();
-    
-    // data sliding window for plotting
-    let mut hist_8: Vec<History<Ytf8>> =
-    vec![History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0),
-        History::<Ytf8>::new(0..YTF_WIND_LEN, 5.0)];
-    
 
-    let ytf_wind 
-        = Arc::new(Mutex::new(hist_8));
-
+    let ytf_wind = Arc::new(Mutex::new(make_banks(8, 5.0, YTF_WIND_LEN)));
     let yld_wind 
         = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
 
@@ -72,7 +58,7 @@ fn main() {
                 selected_port: None,
                 selected_version: None,
                 selected_channels: [false; 8], // <-- crashes, when differently
-                selected_bank: [false; 8],
+                selected_bank: 0,
                 lowpass_threshold: 45.,
                 fft_min: 0.5,
                 fft_max: 40.,
