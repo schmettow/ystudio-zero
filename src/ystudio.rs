@@ -47,7 +47,7 @@ pub struct Ystudio {
     pub yldest_state: Arc<Mutex<YldestState>>, // shared state
     pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
     pub yld_wind: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
-    pub ytf_wind: Arc<Mutex<Vec<History<Ytf8>>>>, // data stream, sort of temporal vecdeque
+    pub ytf_wind: Arc<Mutex<Banks>>, // data stream, sort of temporal vecdeque, one per sensory
     pub ui: Arc<Mutex<Yui>>, // ui parameters with outer lock, more convenient
 }
 
@@ -75,7 +75,7 @@ pub struct Ystudio {
 pub struct Yui {
     pub selected_port: Option<String>,
     pub selected_version: Option<YLabVersion>,
-    pub selected_bank: [bool; 8],
+    pub selected_bank: u8,
     pub selected_channels: [bool; 8],
     pub lowpass_threshold: f64,
     pub fft_min: f64,
@@ -326,19 +326,24 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.label(format!("{}:{}", version, port_name));
 
                         // Bank selector
-                        ui.heading("Banks");
+                       /* ui.heading("Banks");
+                        let bank_slider 
+                            = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=8)
+                            .clamp_to_range(true)
+                            .fixed_decimals(0);*/
+                        
                         //println!("Banks");
-                        let banks = version.bank_labels();
+                        /*let banks = version.bank_labels();
                         println!("Selected Banks");
                         for (bank, label) in  banks.iter().enumerate() {
-                            ui.checkbox( &mut ui_state.selected_bank[bank], label.to_string());
-                        };
+                            ui.checkbox( &mut ui_state.selected_bank, label.to_string());
+                        };*/
                         
                         
                         // Selecting channels to plot
                         ui.heading("Channels");
-                        let selected_channels = ui_state.selected_channels;
-                        for (chan, label) in  selected_channels.iter().enumerate() {
+                        let selected_channels = ui_state.selected_channels.clone();
+                        for (chan, _label) in  selected_channels.iter().enumerate() {
                             ui.checkbox( &mut ui_state.selected_channels[chan], chan.to_string());
                         };
 
