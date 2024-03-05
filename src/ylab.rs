@@ -263,9 +263,9 @@ pub mod data {
     #[derive(Copy, Clone, Debug)]
     pub struct Yld {
         pub time: Duration,
-        pub dev: i8,
-        pub sensory : i8,
-        pub chan: i8,
+        pub dev: u8,
+        pub sensory : u8,
+        pub chan: u8,
         pub value: f64,}
     
     impl Yld {
@@ -323,8 +323,8 @@ pub mod data {
     
     #[derive(Copy, Clone, Debug)]
     pub struct Ytf<const N: usize, T>  {
-        pub dev: i8,
-        pub sensory: i8,
+        pub dev: u8,
+        pub sensory: u8,
         pub time: Duration,
         pub read: [T;N],
     }
@@ -334,7 +334,7 @@ pub mod data {
 
     /*#[derive(Copy, Clone, Debug)]
     pub struct Ytf8 {
-        pub dev: i8,
+        pub dev: u8,
         pub time: i64,
         pub read: [f64;8],
     }*/
@@ -382,7 +382,7 @@ pub mod data {
             let dev = cols[1].parse::<u8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
             // extract sensory number
-            let sensory = cols[1].parse::<i8>();
+            let sensory = cols[1].parse::<u8>();
             if sensory.is_err() {return Err(ParseError::Sensory(cols[1].to_string()))}
             // reading the remaining 8 cols
             let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
@@ -413,7 +413,7 @@ pub mod data {
 
         pub fn to_yld(&self, time: Duration) -> Vec<Yld> {
             let mut out: Vec<Yld> = Vec::new();
-            let mut chan: i8 = 0;
+            let mut chan: u8 = 0;
             for value in self.read.iter() {
                 out.push(Yld{time, dev: self.dev, sensory:self.sensory, chan: chan, value: *value as f64});
                 chan += 1;
