@@ -135,14 +135,18 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                     ui.label(format!("buffer empty"));
                     return
                 }*/
-                let incoming= &ystud.ytf_wind.lock().unwrap().clone()[ui_state.selected_bank as usize];
+                let incoming 
+                        = &ystud.ytf_wind.lock().unwrap().clone()
+                            [ui_state.selected_bank as usize];
+                
                 if incoming.is_empty() {
                     ui.label(format!("buffer empty"));
-                    return
+                    return       // very important! Otherwise the below can crash because of emtoy buffer
                 }
+                let incoming= &ystud.ytf_wind.lock().unwrap().clone()[ui_state.selected_bank as usize];
                 ui.label(format!("Bank {}", ui_state.selected_bank));
                 // Split inconing history into points series
-                // TODO: change to the way we do it with FFT samples, using Ytf8 stream.
+                
                 plot = plot
                         .auto_bounds_x()
                         .include_y(0.0) 
@@ -236,7 +240,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     // Handling buffer under-runs
                     let incoming_size = incoming.len();
                     if incoming_size < fft_size {
-                        ui.label(format!("still buffering ... {}%", incoming_size/fft_size * 100));
+                        ui.label(format!("still buffering ... {:.1}%", incoming_size as f32/fft_size as f32 * 100.0));
                         return
                     }
                     // Collect the FFT window per channel
