@@ -13,15 +13,71 @@ pub const _YLAB_EPOCH: usize = 1704063600;
 
 /// YLab version
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct YLab {
+    board: YLabVersion,
+    sensories: Vec<Sensory>
+}
+
+
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum YLabVersion {Pro, Go, GoMotion, Mini}
+pub enum Sensory {Moi(u8), Adc(u8, usize), Yxz(u8, usize), Air(u8)}
+
+impl fmt::Display for Sensory {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Sensory {
+    pub fn label(self) -> String {
+        let out = format!("{}", self);
+        return out
+    }
+
+    pub fn fft_size(self) -> Option<usize> {
+        match self {
+            Sensory::Adc(_, hz) | Sensory::Yxz(_, hz) 
+                => match hz {
+                      0..= 10  => None,
+                     11..= 32  => Some(32 * 2),
+                     33..= 64  => Some(64 * 2),
+                     65..=128  => Some(128 * 2),
+                    129..=256  => Some(256 * 2),
+                    257..=512  => Some(512 * 2),
+                    _          => Some(1024 * 2) 
+                },
+            _   => None,
+        }
+    }
+
+    pub fn fft_low(self) -> Option<f32> {
+        match self {
+            Sensory::Adc(_, hz) | Sensory::Yxz(_, hz) 
+                => Some(self.fft_size().unwrap() as f32/ hz as f32),
+            _   => None,
+        }
+    }
+
+    pub fn fft_high(self) -> Option<f32> {
+        match self {
+            Sensory::Adc(_, hz) | Sensory::Yxz(_, hz) 
+                => Some(hz as f32 / 2.0),
+            _   => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum YLabVersion {Pro, Go, GoMotion(u8), GoStress, Mini}
 
 impl YLabVersion {
     pub fn baud(&self) -> u32 {
         match *self {
             YLabVersion::Pro => 2_000_000,
             YLabVersion::Go => 1_000_000,
-            YLabVersion::GoMotion => 1_000_000,
+            YLabVersion::GoMotion(_) => 1_000_000,
+            YLabVersion::GoStress => 1_000_000,
             YLabVersion::Mini => 125_200,
         }
     }
@@ -30,19 +86,30 @@ impl YLabVersion {
         match *self {
             YLabVersion::Pro => 1024,
             YLabVersion::Go => 512,
-            YLabVersion::GoMotion => 512,
+            YLabVersion::GoMotion(_) => 256,
+            YLabVersion::GoStress => 256,
             YLabVersion::Mini => 128,
         }
     }
 
+    
     pub fn bank_labels(&self) -> Vec<&str> {
         match *self {
-            YLabVersion::Pro => vec!["ADC", "I2C0", "I2C1", "I2C2"],
-            YLabVersion::Go => vec!["ADC", "I2C0", "I2C1"],
-            YLabVersion::GoMotion => vec!["ADC", "Yxz_1", "Yxz_2", "Yxz_3", "Yxz_4"],
+            YLabVersion::Pro => vec!["MOI", "ADC"],
+            YLabVersion::Go => vec!["MOI", "ADC"],
+            YLabVersion::GoMotion(1) => vec!["MOI", "Analog", "Yxz"],
+            YLabVersion::GoMotion(4) => vec!["MOI", "Analog", "Yxz_0", "Yxz_1", "Yxz_2", "Yxz_3"],
+            YLabVersion::GoMotion(7) => vec!["MOI","ADC", "Yxz_0", "Yxz_1", "Yxz_2", "Yxz_3", "Yxz_4", "Yxz_5", "Yxz_6", "Yxz_7"],
+            YLabVersion::GoMotion(_) => vec![],
+            YLabVersion::GoStress => vec!["MOI","ADC", "Air"],
             YLabVersion::Mini => vec!["ADC"],
         }
     }
+
+    pub fn n_banks(&self) -> u8 {
+        self.bank_labels().len().clone() as u8
+    }
+
 }
 
 
@@ -51,7 +118,8 @@ impl fmt::Display for YLabVersion {
         match self {
             YLabVersion::Pro => write!(f, "Pro"),
             YLabVersion::Go => write!(f, "Go"),
-            YLabVersion::GoMotion => write!(f, "Go Motion"),
+            YLabVersion::GoMotion(n) => write!(f, "Go Motion {}", n),
+            YLabVersion::GoStress => write!(f, "Go Stress"),
             YLabVersion::Mini => write!(f, "Mini"),
         }
     }
@@ -364,6 +432,7 @@ pub mod data {
         for _ in 0..n {
             let new_bank = History::<Ytf8>::new(1..max_len, seconds);
             out.push(new_bank);
+            eprintln!("Bank {}", out.len())
         }
         out
     }
