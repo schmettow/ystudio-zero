@@ -27,6 +27,8 @@ const YLD_WIND_LEN:usize = 20_000;
 const YTF_WIND_LEN:usize = 1_000_000;
 
 fn main() {
+    println!("Hello Ystudio");
+    eprintln!("and YLab");
     // states
     let ylab_state 
         = Arc::new(Mutex::new(YLabState::Disconnected {ports: None}));
@@ -61,7 +63,7 @@ fn main() {
                 selected_channels: [true; 8], // <-- crashes, when differently
                 selected_bank: 0,
                 lowpass_threshold: 45.,
-                fft_min: 0.5,
+                fft_min: 2.,
                 fft_max: 40.,
         })),
     };
