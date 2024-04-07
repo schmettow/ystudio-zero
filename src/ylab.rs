@@ -69,12 +69,13 @@ impl Sensory {
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum YLabVersion {Pro, Go, GoMotion(u8), GoStress, Mini}
+pub enum YLabVersion {Pro, ProMotion(u8), Go, GoMotion(u8), GoStress, Mini}
 
 impl YLabVersion {
     pub fn baud(&self) -> u32 {
         match *self {
             YLabVersion::Pro => 2_000_000,
+            YLabVersion::ProMotion(_) => 2_000_000,
             YLabVersion::Go => 1_000_000,
             YLabVersion::GoMotion(_) => 1_000_000,
             YLabVersion::GoStress => 1_000_000,
@@ -84,9 +85,10 @@ impl YLabVersion {
 
     pub fn fft_size(&self) -> usize {
         match *self {
-            YLabVersion::Pro => 1024,
+            YLabVersion::Pro => 512,
+            YLabVersion::ProMotion(_) => 128,
             YLabVersion::Go => 512,
-            YLabVersion::GoMotion(_) => 256,
+            YLabVersion::GoMotion(_) => 128,
             YLabVersion::GoStress => 256,
             YLabVersion::Mini => 128,
         }
@@ -96,11 +98,13 @@ impl YLabVersion {
     pub fn bank_labels(&self) -> Vec<&str> {
         match *self {
             YLabVersion::Pro => vec!["MOI", "ADC"],
+            YLabVersion::ProMotion(1) => vec!["MOI", "Analog", "Yxz"],
+            YLabVersion::ProMotion(_) => todo!(),
             YLabVersion::Go => vec!["MOI", "ADC"],
             YLabVersion::GoMotion(1) => vec!["MOI", "Analog", "Yxz"],
             YLabVersion::GoMotion(4) => vec!["MOI", "Analog", "Yxz_0", "Yxz_1", "Yxz_2", "Yxz_3"],
             YLabVersion::GoMotion(7) => vec!["MOI","ADC", "Yxz_0", "Yxz_1", "Yxz_2", "Yxz_3", "Yxz_4", "Yxz_5", "Yxz_6", "Yxz_7"],
-            YLabVersion::GoMotion(_) => vec![],
+            YLabVersion::GoMotion(_) => todo!(),
             YLabVersion::GoStress => vec!["MOI","ADC", "Air"],
             YLabVersion::Mini => vec!["ADC"],
         }
@@ -117,6 +121,7 @@ impl fmt::Display for YLabVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             YLabVersion::Pro => write!(f, "Pro"),
+            YLabVersion::ProMotion(n) => write!(f, "Pro Motion {}", n),
             YLabVersion::Go => write!(f, "Go"),
             YLabVersion::GoMotion(n) => write!(f, "Go Motion {}", n),
             YLabVersion::GoStress => write!(f, "Go Stress"),
@@ -263,7 +268,7 @@ pub fn ylab_thread(
                 =>  {let mut reader = bufreader.lock().unwrap();
                     match reader.as_mut().unwrap().lines().next(){
                         // buffer empty
-                        None => {continue},
+                        None => {eprint!("No line"); continue},
                         // line found
                         Some(line)
                             => match line {
@@ -274,7 +279,7 @@ pub fn ylab_thread(
                                     // parse line into Ytf8
                                     match data::Ytf8::from_csv_line(&line) {
                                         // not a Ytf8 line
-                                        Err(_) => {continue}
+                                        Err(e) => {eprintln!("Not Ytf8: {:?}", e); continue}
                                         // Ytf8 line,
                                         Ok(sample) => {
                                             let ystudio_time = Instant::now().duration_since(start_time);
@@ -324,7 +329,7 @@ pub fn ylab_thread(
 /// YLab DATA
 
 pub mod data {
-    //use super::*;
+    use super::*;
     use std::time::Duration;
     use egui::util::History;
     /// YLab Long Data
@@ -478,16 +483,16 @@ pub mod data {
             // extract time stamp
             //let millis = cols[0].parse::<i64>();
             let time: Duration;
-            match cols[0].parse::<i64>() {
+            match cols[0].trim().parse::<i64>() {
                 Ok(millis) => {time = Duration::from_millis(millis.try_into().unwrap())},
                                 Err(_) => return Err(ParseError::Time(cols[0].to_string())),
                 }
             
             // extract dev number
-            let dev = cols[1].parse::<u8>();
+            let dev = cols[1].trim().parse::<u8>();
             if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
             // extract sensory number
-            let sensory = cols[1].parse::<u8>();
+            let sensory = cols[1].trim().parse::<u8>();
             if sensory.is_err() {return Err(ParseError::Sensory(cols[1].to_string()))}
             // reading the remaining 8 cols
             let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
