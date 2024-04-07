@@ -1,0 +1,18 @@
+---
+title: "Tests"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+D_0 <- read_csv("./9925864.yld", col_names = c("time", "dev", "sensory", "chan", "value")) |> 
+  mutate(dev = as.factor(dev),
+         sensory = as.factor(sensory),
+         chan = as.factor(chan))
+
+D_0 |> 
+  ggplot(aes(x = time, y = value, color =  as.factor(chan) )) +
+  geom_line() +
+  facet_grid(~sensory)
+```
