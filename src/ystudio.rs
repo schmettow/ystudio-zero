@@ -210,12 +210,15 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
 
 /// updates bottom panel with FFT
 pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
+    
     egui::TopBottomPanel::bottom("bottom_panel")
         .show(ctx, |ui| {
             ui.heading("Distribution of Frequencies");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
             let ui_state = ystud.ui.lock().unwrap();
+            // First bank is events
             if ui_state.selected_bank == 0 {return}
+            
             match ylab_state {
                 // Plot a spectrogramm
                 YLabState::Reading {version, port_name:_}
@@ -265,6 +268,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             }
 
                             // Acive channel
+                            //if sample.len() < 10 {return};
                             let hann_window = hann_window(sample.as_slice());
                             // get frequency limits from ui
                             let freq_range
@@ -319,6 +323,72 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     None => YLabVersion::Go,};
             
             match ylab_state.clone() {
+                // Selecting port and YLab version
+                // When both are selected, the connect button is shown
+                YLabState::Disconnected {ports}
+                    => {ui.heading("Disconnected");              
+                        // When ports are available, show the options
+                        match ports {
+                            None => {ui.label("Searching ports");
+                                    eprintln!("No ports available");},
+                            Some(ports) 
+                                => {
+                                // unpacking version and port
+                                let selected_port: Option<String> 
+                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
+                                    = match ui_state.selected_port.clone() {
+                                        // in case there is a user-selected port, use it
+                                        Some(port) => Some(port),
+                                        // otherwise use the first available port
+                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
+                                                else {None},
+                                    };
+                                // one selectable label for each port
+                                ui.label("Available Ports");
+                                for i in ports.iter() {
+                                    // Create a selectable label for each port
+                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
+                                                                                i.to_string())).clicked() { 
+                                        ui_state.selected_port = Some(i.clone())
+                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
+                                    }
+                                };
+                                ui.separator();
+                                // one selectable per version
+                                ui.label("Version");
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Pro);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::ProMotion(1), "Pro Motion 1")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::ProMotion(1));
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Go);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoMotion(4), "Go Motion 4")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::GoMotion(4));
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoStress, "Go Stress")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::GoStress);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Mini);
+                                }
+                                ui.separator();
+                                // The button is only shown when version and port are selected (which currently is by default).
+                                // It commits the connection command to the YLab thread.
+                                //match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
+                                match (ui_state.selected_version, ui_state.selected_port.clone())  {
+                                    (Some(version), Some(port)) 
+                                        =>  if ui.button("Connect")
+                                                .on_hover_text("Connect to YLab")
+                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();},
+                                        _ => {ui.label("Select port and version");}
+                                }
+                                 
+                            } 
+                        }
+                    },
                 // Connected to YLab by selecting port and version
                 YLabState::Connected {version, port_name}
                     => {ui.heading("Connected");
@@ -451,69 +521,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         }
                     },
 
-                // Selecting port and YLab version
-                // When both are selected, the connect button is shown
-                YLabState::Disconnected {ports}
-                    => {ui.heading("Disconnected");              
-                        // When ports are available, show the options
-                        match ports {
-                            None => {ui.label("Searching ports");
-                                    eprintln!("No ports available");},
-                            Some(ports) 
-                                => {
-                                // unpacking version and port
-                                let selected_port: Option<String> 
-                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
-                                    = match ui_state.selected_port.clone() {
-                                        // in case there is a user-selected port, use it
-                                        Some(port) => Some(port),
-                                        // otherwise use the first available port
-                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
-                                                else {None},
-                                    };
-                                // one selectable label for each port
-                                ui.label("Available Ports");
-                                for i in ports.iter() {
-                                    // Create a selectable label for each port
-                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
-                                                                                i.to_string())).clicked() { 
-                                        ui_state.selected_port = Some(i.clone())
-                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
-                                    }
-                                };
-                                ui.separator();
-                                // one selectable per version
-                                ui.label("Version");
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Pro);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Go);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoMotion(4), "Go Motion 4")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::GoMotion(4));
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoStress, "Go Stress")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::GoStress);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Mini);
-                                }
-                                ui.separator();
-                                // The button is only shown when version and port are selected (which currently is by default).
-                                // It commits the connection command to the YLab thread.
-                                //match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
-                                match (ui_state.selected_version, ui_state.selected_port.clone())  {
-                                    (Some(version), Some(port)) 
-                                        =>  if ui.button("Connect")
-                                                .on_hover_text("Connect to YLab")
-                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();},
-                                        _ => {ui.label("Select port and version");}
-                                }
-                                 
-                            } 
-                        }
-                    },
+                
                 }
             });
         }
