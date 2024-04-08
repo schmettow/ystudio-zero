@@ -9,7 +9,43 @@ The following features are currently supported:
 +   painless connection to YLab systems with automatic configuration
 +   raw signal view, with adjustable low-pass filter
 +   real-time spectrogram using channel-wise FFT
-+   Recording in long format.
++   Recording in user-friendly long format
+
+## Installation 
+
+### For End Users
+
+First you need a YLab Edge [Go](https://github.com/schmettow/ylab-edge-go/) or [Pro](https://github.com/schmettow/ylab-edge-pro/).
+Create a directory on your computer (e.g. Ystudio), where you want to collect the data. Download [Ystudio Zero for Windows](https://github.com/schmettow/ystudio-zero/raw/main/target/release/ystudio-zero.exe) and move it from the Downloads folder  into Ystudio. Double-click on the program to start. 
+
+It may happen that that your Windows system prevents the app from starting, because it is not certified. In that case: 
+
+1. Open Ystudio in the file explorer
+2. Right click on ystudio.exe, choose Properties
+3. [Security] Unblocked [X]
+
+coming_soon: downloads for Mac and Linux.
+
+### For Developers
+
+1. Install the Rust tool chain: https://rustup.rs/
+2. Clone this repository using your favorite editor or the command line: `git clone
+3. Build and run the project: `cargo run`
+
+
+## Usage
+
+1. Connect your Ylab sensor to your computer
+2. Select the correct serial port in the dropdown menu
+3. Select the correct YLab version in the dropdown menu
+4. Press the `Connect` button
+5. Press the `Read` button
+6. Press `Record` to collect data
+7. Use the slider to switch between sensory banks
+8. Use the check boxes to select channels
+9. Use Low Pass filter to reduce noise
+10. Use the frequency diagram to analyze biopotential signals
+
 
 ## Technical description
 
@@ -25,30 +61,6 @@ contains *three main tasks*:
 
 Ystudio is funded by *WSV Innovation Funds, University of Twente*
 
-## Installation 
-
-### Developer
-
-1. Install the Rust tool chain: https://rustup.rs/
-2. Clone this repository using your favorite editor or the command line: `git clone
-3. Build and run the project: `cargo run`
-
-### End User
-
-Create a directory on your computer, where you want to store the data. Download [Ystudio Zero for Windows](https://github.com/schmettow/ystudio-zero/raw/main/target/release/ystudio-zero.exe) and put it into this directory. Double-click on the program to start.
-
-
-coming_soon: downloads for Mac and Linux.
-
-
-## Usage
-
-1. Connect your Ylab sensor to your computer
-2. Select the correct serial port in the dropdown menu
-3. Select the correct YLab version in the dropdown menu
-4. Press the `Connect` button
-5. Press the `Read` button
-6. Use the check boxes to select the channels you want to see
 
 # Technical details
 
