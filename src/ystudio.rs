@@ -1,6 +1,7 @@
 
 pub use eframe::egui;
 pub use egui::util::History;
+use egui::Ui;
 pub use egui_plot::PlotPoints;
 pub use std::sync::mpsc::Sender;
 pub use std::{thread, sync::*};
@@ -12,10 +13,11 @@ pub use crate::yldest::*;
 impl eframe::App for Ystudio {
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
-    #[cfg(feature = "persistence")]
+    
+    /*//#[cfg(feature = "persistence")]
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
-    }
+    }*/
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
@@ -92,15 +94,16 @@ use std::collections::VecDeque;
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub fn egui_init(ystud: Ystudio) {
     let options = eframe::NativeOptions {
-        transparent: true,
-        initial_window_size: Some(egui::vec2(1000.0, 800.0)),
-        resizable: true,
+        // transparent: true,
+        // initial_window_size: Some(egui::vec2(1000.0, 800.0)),
+        // resizable: true,
         ..Default::default()
     };
+    egui_logger::builder().init().unwrap();
     eframe::run_native(
         "Ystudio Zero", // unused title
         options,
-        Box::new(|_cc| Box::new(ystud)),
+        Box::new(|_cc| Ok(Box::new(ystud))),
     ).unwrap();
 }
 
@@ -128,13 +131,35 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
         let ui_state = ystud.ui.lock().unwrap();
     
         match ystud.ylab_state.lock().unwrap().clone() {
+            YLabState::Connected {version: _, port_name: _} => {
+                egui::ScrollArea::vertical()
+                .auto_shrink([false, true])
+                .max_height(ui.available_height() - 30.0)
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    let incoming 
+                        = &ystud.ytf_wind.lock().unwrap().clone()
+                            [ui_state.selected_bank as usize];
+                
+                    if incoming.is_empty() {
+                        ui.label(format!("buffer empty"));
+                        return
+                        }
+
+                    for r in incoming.iter() {
+                        let (_, ytf)  = r;
+                        ui.label(format!("{:?}", ytf));
+                        };
+                    });
+                return
+            },
             YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
-                /*let incoming= ystud.yld_wind.lock().unwrap().clone();
+                let incoming= ystud.yld_wind.lock().unwrap().clone();
                 if incoming.is_empty() {
                     ui.label(format!("buffer empty"));
                     return
-                }*/
+                }
                 let incoming 
                         = &ystud.ytf_wind.lock().unwrap().clone()
                             [ui_state.selected_bank as usize];
@@ -149,9 +174,10 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 // Split inconing history into points series
                 
                 plot = plot
-                        .auto_bounds_x()
+                        .auto_bounds([true, true].into())
+                        //.auto_bounds_x()
                         .include_y(0.0) 
-                        .auto_bounds_y()
+                        //.auto_bounds_y()
                         .legend(egui_plot::Legend::default());
                 
                 // Plot lines: CLOSURE
@@ -382,7 +408,9 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     (Some(version), Some(port)) 
                                         =>  if ui.button("Connect")
                                                 .on_hover_text("Connect to YLab")
-                                                .clicked()  {ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();},
+                                                .clicked()  {
+                                                    ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();
+                                                },
                                         _ => {ui.label("Select port and version");}
                                 }
                                  
