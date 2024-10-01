@@ -72,6 +72,11 @@ pub struct Ystudio {
 /// 
 /// , and the value buffer becomes the limiting factor. 
 
+#[derive(Debug, Clone)]
+enum DataView{
+    None, 
+    Log{selected_bank: u8, selected_channels: [bool; 8]}, 
+    Plot{selected_bank: u8, selected_channels: [bool; 8], lowpass_threshold: f64,}}
 
 #[derive(Debug, Clone)]
 pub struct Yui {
@@ -79,6 +84,7 @@ pub struct Yui {
     pub selected_version: Option<YLabVersion>,
     pub selected_bank: u8,
     pub selected_channels: [bool; 8],
+    pub data_view: DataView,
     pub lowpass_threshold: f64,
     pub fft_min: f64,
     pub fft_max: f64
