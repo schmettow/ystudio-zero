@@ -267,29 +267,38 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     let incoming 
                         = &ystud.ytf_wind.lock().unwrap().clone()
                             [ui_state.selected_bank as usize]; 
-                    let sample_rate: f64 = incoming.len() as f64 / incoming.duration() as f64;
+                    let duration = incoming.duration() as f64;
+                    let n_samples = incoming.len();
+                    let sample_rate= n_samples as f64/duration;
                     let nyquist = sample_rate/2.; 
+                    let lowest_freq = 1./(duration * 2.);
                     // Handling buffer under-runs
-                    let incoming_size = incoming.len();
+                    
                     let fft_size = version.fft_size();
-                    if incoming_size < fft_size {
-                        ui.label(format!("still buffering ... {:.1}%", incoming_size as f32/fft_size as f32 * 100.0));
+                    if n_samples < fft_size {
+                        ui.label(format!("still buffering ... {:.1}%", n_samples as f32/fft_size as f32 * 100.0));
                         return
                     }
                     // Sliders for FFT range
                     ui.label("min (Hz)");
-                    let min_range = 0. as f64 ..=(nyquist as f64 - 5.);
+                    let min_range_max =   // This because max() not implemented for float
+                        match nyquist > ui_state.fft_max {
+                            true => ui_state.fft_max,
+                            false => nyquist
+                        };
+                    let min_range = lowest_freq ..= (min_range_max - 3.);
                     let fft_min_slider 
                         = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
-                        //.clamping(true)
+                        .clamping(egui::SliderClamping::Always)
                         .logarithmic(true)
                         .fixed_decimals(3);
                     ui.add(fft_min_slider);
                     ui.label("max (Hz)");
-                    let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
+                    let max_range = (ui_state.fft_min + 3.)..=(nyquist);
                     let fft_max_slider 
                         = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
-                        //.clamp_to_range(true)
+                        .clamping(egui::SliderClamping::Always)
+                        .logarithmic(true)
                         .fixed_decimals(1);
                     ui.add(fft_max_slider);
                     ui.separator();
@@ -332,6 +341,13 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             //if sample.len() < 10 {return};
                             let hann_window = hann_window(sample.as_slice());
                             // get frequency limits from ui
+                            /*if ui_state.fft_min > ui_state.fft_max {
+                                ui.label("Incorrect range");
+                                return
+                            }*/
+                            if ui_state.fft_max <= ui_state.fft_min + 2. {
+                                panic!("Incorrect frequency band {} .. {}", ui_state.fft_min, ui_state.fft_max)
+                            }
                             let freq_range
                                 = FrequencyLimit::Range(ui_state.fft_min as f32, ui_state.fft_max as f32);
                             // compute the possible power spectrum
@@ -511,7 +527,13 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.heading("Channels");
                         let selected_channels = ui_state.selected_channels.clone();
                         for (chan, _label) in  selected_channels.iter().enumerate() {
-                            ui.checkbox( &mut ui_state.selected_channels[chan], chan.to_string());
+                            //ui.menu_image_text_button(image, title, add_contents)
+                            ui.horizontal(|ui| {
+                                ui.checkbox( &mut ui_state.selected_channels[chan], "");
+                                // ui.checkbox(&mut checked, &label);
+                                // Set the color for the label
+                                ui.label(egui::RichText::new(chan.to_string()).color(LINE_COLORS[chan]));
+                            });
                         };
                         
                         if ui_state.selected_bank > 0 {
