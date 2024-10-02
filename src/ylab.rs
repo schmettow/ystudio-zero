@@ -254,8 +254,8 @@ pub fn ylab_thread(
                 },
                 
             // Start reading on command
-            (YLabState::Connected {version, ref port_name},
-            Some(YLabCmd::Read {})) 
+            (YLabState::Connected {version, ref port_name}, _)  // jumping over connect state
+            //Some(YLabCmd::Read {})) 
             => {*bufreader.lock().unwrap() 
                     = Some(BufReader::new(serialport.lock().unwrap().take().unwrap()));
                 *ylab_state.lock().unwrap() = YLabState::Reading {version: version.clone(),
