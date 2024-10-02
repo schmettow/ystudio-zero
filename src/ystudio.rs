@@ -1,7 +1,9 @@
 
 pub use eframe::egui;
+// use egui::load::LoadError;
 pub use egui::util::History;
 use egui::Ui;
+// use egui_plot::Plot;
 pub use egui_plot::PlotPoints;
 pub use std::sync::mpsc::Sender;
 pub use std::{thread, sync::*};
@@ -72,11 +74,13 @@ pub struct Ystudio {
 /// 
 /// , and the value buffer becomes the limiting factor. 
 
-#[derive(Debug, Clone)]
-enum DataView{
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DataView{
     None, 
-    Log{selected_bank: u8, selected_channels: [bool; 8]}, 
-    Plot{selected_bank: u8, selected_channels: [bool; 8], lowpass_threshold: f64,}}
+    Log, 
+    Plot,
+    PlotFft,
+}
 
 #[derive(Debug, Clone)]
 pub struct Yui {
@@ -84,7 +88,7 @@ pub struct Yui {
     pub selected_version: Option<YLabVersion>,
     pub selected_bank: u8,
     pub selected_channels: [bool; 8],
-    pub data_view: DataView,
+    pub view: DataView,
     pub lowpass_threshold: f64,
     pub fft_min: f64,
     pub fft_max: f64
@@ -105,7 +109,7 @@ pub fn egui_init(ystud: Ystudio) {
         // resizable: true,
         ..Default::default()
     };
-    egui_logger::builder().init().unwrap();
+    //egui_logger::builder().init().unwrap();
     eframe::run_native(
         "Ystudio Zero", // unused title
         options,
@@ -138,26 +142,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
     
         match ystud.ylab_state.lock().unwrap().clone() {
             YLabState::Connected {version: _, port_name: _} => {
-                egui::ScrollArea::vertical()
-                .auto_shrink([false, true])
-                .max_height(ui.available_height() - 30.0)
-                .stick_to_bottom(true)
-                .show(ui, |ui| {
-                    let incoming 
-                        = &ystud.ytf_wind.lock().unwrap().clone()
-                            [ui_state.selected_bank as usize];
-                
-                    if incoming.is_empty() {
-                        ui.label(format!("buffer empty"));
-                        return
-                        }
-
-                    for r in incoming.iter() {
-                        let (_, ytf)  = r;
-                        ui.label(format!("{:?}", ytf));
-                        };
-                    });
-                return
             },
             YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
@@ -179,60 +163,85 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                 ui.label(format!("Bank {}", ui_state.selected_bank));
                 // Split inconing history into points series
                 
-                plot = plot
-                        .auto_bounds([true, true].into())
-                        //.auto_bounds_x()
-                        .include_y(0.0) 
-                        //.auto_bounds_y()
-                        .legend(egui_plot::Legend::default());
+                match ui_state.view {
+                    DataView::None => {}, 
+                    DataView::Log => {
+                        egui::ScrollArea::vertical()
+                        .auto_shrink([false, true])
+                        .max_height(ui.available_height() - 30.0)
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            let incoming 
+                                = &ystud.ytf_wind.lock().unwrap().clone()
+                                    [ui_state.selected_bank as usize];
+                        
+                            if incoming.is_empty() {
+                                ui.label(format!("buffer empty"));
+                                return
+                                }
+
+                            for r in incoming.iter() {
+                                let (_, ytf)  = r;
+                                ui.label(format!("{:?}", ytf));
+                                };
+                            });
+                            },
+                            DataView::Plot | DataView::PlotFft => {
+                                plot = plot
+                                .auto_bounds([true, true].into())
+                                //.auto_bounds_x()
+                                .include_y(0.0) 
+                                //.auto_bounds_y()
+                                .legend(egui_plot::Legend::default());
+                                plot.show(ui, |plot_ui| {                
+                                    let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer
+                                    let series  = incoming.split();
+                                    for (chan, active) in ui_state.selected_channels.iter().enumerate() {
+                                        // inactive channels
+                                        if !active | (series[chan].len() < 25) {
+                                            continue
+                                        }
+
+                                        // filter                            
+                                        use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
+                                        let lowpass = ui_state.lowpass_threshold as f32;
+                                        let coeffs 
+                                            = Coefficients::<f32>::from_params( Type::LowPass, 
+                                                                                rate.hz(), 
+                                                                                lowpass.hz(), 
+                                                                                Q_BUTTERWORTH_F32);
+                                        
+                                        match coeffs {
+                                            Err(e) => println!("{:?}", e),
+                                            Ok(coeffs) => {
+                                                let mut biquad_lpf 
+                                                        = DirectForm1::<f32>::new(coeffs);
+                                                        let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
+                                                series[chan].iter()
+                                                        .for_each(|point| filtered_points
+                                                                                        .push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
+                                                // Calculate lowpass burnin
+                                                let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
+                                                // removing the burnin period, sadly changes scrolling speed
+                                                for _ in 0..(burnin as usize) {
+                                                    filtered_points.pop_back();
+                                                }
+                                                // PLot the line
+                                                let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()))
+                                                    .color(LINE_COLORS[chan]);
+                                                plot_ui.line(filtered_line);
+                    
+                                            }
+                                        }     
+                                    }
+                            });
+                    },
+                }
+
+                
                 
                 // Plot lines: CLOSURE
-                plot.show(ui, |plot_ui| {                
-                let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer 
-
-                let series  = incoming.split();
-                for (chan, active) in ui_state.selected_channels.iter().enumerate() {
-                    // inactive channels
-                    if !active | (series[chan].len() < 25) {
-                        continue
-                    }
-                    
-                    // processing active channels
-                    
-                    // Preparing the filter engine
-                    
-                    use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
-                    let lowpass = ui_state.lowpass_threshold as f32;
-                    let coeffs 
-                        = Coefficients::<f32>::from_params( Type::LowPass, 
-                                                            rate.hz(), 
-                                                            lowpass.hz(), 
-                                                            Q_BUTTERWORTH_F32);
-                    
-                    match coeffs {
-                        Err(e) => println!("{:?}", e),
-                        Ok(coeffs) => {
-                            let mut biquad_lpf 
-                                    = DirectForm1::<f32>::new(coeffs);
-                                    let mut filtered_points: VecDeque<[f64; 2]> = VecDeque::new();
-                            series[chan].iter()
-                                    .for_each(|point| filtered_points
-                                                                    .push_front([point[0], biquad_lpf.run(point[1] as f32) as f64]));
-                            // Calculate lowpass burnin
-                            let burnin = 2 * (rate/lowpass) as usize + 1; // <--- formula for low pass burnin
-                            // removing the burnin period, sadly changes scrolling speed
-                            for _ in 0..(burnin as usize) {
-                                filtered_points.pop_back();
-                            }
-                            // PLot the line
-                            let filtered_line = egui_plot::Line::new(PlotPoints::new(filtered_points.to_owned().into()))
-                                .color(LINE_COLORS[chan]);
-                            plot_ui.line(filtered_line);
-
-                        }
-                    }     
-                }
-            });
+                
             },
             _ => {},
         }
@@ -245,32 +254,53 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     
     egui::TopBottomPanel::bottom("bottom_panel")
         .show(ctx, |ui| {
-            ui.heading("Distribution of Frequencies");
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
-            let ui_state = ystud.ui.lock().unwrap();
+            let mut ui_state = ystud.ui.lock().unwrap();
             // First bank is events
             if ui_state.selected_bank == 0 {return}
             
-            match ylab_state {
+            match (ylab_state, ui_state.view) {
                 // Plot a spectrogramm
-                YLabState::Reading {version, port_name:_}
-                => {// configuring the plot
+                (YLabState::Reading {version, port_name:_}, DataView::PlotFft)
+                => {ui.heading("Distribution of Frequencies");
+                    // fetching data from YLab
+                    let incoming 
+                        = &ystud.ytf_wind.lock().unwrap().clone()
+                            [ui_state.selected_bank as usize]; 
+                    let sample_rate: f64 = incoming.len() as f64 / incoming.duration() as f64;
+                    let nyquist = sample_rate/2.; 
+                    // Handling buffer under-runs
+                    let incoming_size = incoming.len();
+                    let fft_size = version.fft_size();
+                    if incoming_size < fft_size {
+                        ui.label(format!("still buffering ... {:.1}%", incoming_size as f32/fft_size as f32 * 100.0));
+                        return
+                    }
+                    // Sliders for FFT range
+                    ui.label("min (Hz)");
+                    let min_range = 0. as f64 ..=(nyquist as f64 - 5.);
+                    let fft_min_slider 
+                        = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
+                        //.clamping(true)
+                        .logarithmic(true)
+                        .fixed_decimals(3);
+                    ui.add(fft_min_slider);
+                    ui.label("max (Hz)");
+                    let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
+                    let fft_max_slider 
+                        = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
+                        //.clamp_to_range(true)
+                        .fixed_decimals(1);
+                    ui.add(fft_max_slider);
+                    ui.separator();
+
+                    // configuring the plot
                     use spectrum_analyzer::scaling::divide_by_N;
                     use spectrum_analyzer::windows::hann_window;
                     use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
                     // Creating the plotter
                     // exact size of data window for FFT
-                    let fft_size = version.fft_size();
-                    // fetching data from YLab
-                    let incoming 
-                        = &ystud.ytf_wind.lock().unwrap().clone()
-                            [ui_state.selected_bank as usize]; 
-                    // Handling buffer under-runs
-                    let incoming_size = incoming.len();
-                    if incoming_size < fft_size {
-                        ui.label(format!("still buffering ... {:.1}%", incoming_size as f32/fft_size as f32 * 100.0));
-                        return
-                    }
+                    
                     // Collect the FFT window per channel
                     // Vector of channels of samples
                     let mut samples: Vec<Vec<f32>> = vec![vec![]; 8];
@@ -282,9 +312,8 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     
                     let mut plot = egui_plot::Plot::new("FFT");
                     plot = plot
-                            .auto_bounds_x()
-                            .auto_bounds_y()
-                            .include_x(ui_state.fft_min)
+                            .auto_bounds([true, true].into())
+                            //.include_x(ui_state.fft_min)
                             .include_x(ui_state.fft_max)
                             .legend(egui_plot::Legend::default());
                     
@@ -439,19 +468,29 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
                         // Stop reading
-                        //
-                        // send command to YLab
                         if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
+                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap();
+                            ui_state.view = DataView::None;
                             println!("Cmd: Stop")};
                         ui.separator();
 
+                        // View
+                        ui.label("View");
+                        egui::ComboBox::from_label("select View")
+                            .selected_text(format!("{:?}", ui_state.view))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut ui_state.view, DataView::PlotFft, "Plot + FFT");
+                                ui.selectable_value(&mut ui_state.view, DataView::Plot, "Plot");
+                                ui.selectable_value(&mut ui_state.view, DataView::Log, "Log");
+                                ui.selectable_value(&mut ui_state.view, DataView::None, "None");
+                            });
                         // Bank selector (if more than one)
                         let n_banks = version.n_banks();
+                        
                         if n_banks > 1 {
-                            ui.heading("Banks");
-                            ui.add(egui::Slider::new(&mut ui_state.selected_bank, 0..=(version.n_banks()-1)).text("Bank"));
-                            ui.label(format!("Bank {} of {}", &ui_state.selected_bank, n_banks));
+                            ui.heading("Sensory");
+                            ui.add(egui::Slider::new(&mut ui_state.selected_bank, 1..=(version.n_banks())).text(""));
+                            ui.label(format!("Sensory {} of {}", &ui_state.selected_bank, n_banks));
                             ui.separator();
                         }
 
@@ -502,31 +541,31 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             //let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap(); 
                             let lowpass_slider 
                                 = egui::widgets::Slider::new(&mut ui_state.lowpass_threshold, low_limit..=nyquist)
-                                .clamp_to_range(true)
+                                //.clamp_to_range(true)
                                 .logarithmic(true)
                                 .fixed_decimals(3);
                             ui.add(lowpass_slider);
                             
-                            ui.separator();
-                            ui.heading("FFT");
-                            // Sliders for FFT range
-                            ui.label("min (Hz)");
-                            let min_range = 0. ..=(nyquist - 5.);
-                            let fft_min_slider 
-                                = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
-                                .clamp_to_range(true)
-                                .logarithmic(true)
-                                .fixed_decimals(3);
-                            ui.add(fft_min_slider);
+                            // ui.separator();
+                            // ui.heading("FFT");
+                            // // Sliders for FFT range
+                            // ui.label("min (Hz)");
+                            // let min_range = 0. ..=(nyquist - 5.);
+                            // let fft_min_slider 
+                            //     = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
+                            //     //.clamping(true)
+                            //     .logarithmic(true)
+                            //     .fixed_decimals(3);
+                            // ui.add(fft_min_slider);
 
-                            ui.label("max (Hz)");
-                            let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
-                            let fft_max_slider 
-                                = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
-                                .clamp_to_range(true)
-                                .fixed_decimals(1);
-                            ui.add(fft_max_slider);
-                            ui.separator();
+                            // ui.label("max (Hz)");
+                            // let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
+                            // let fft_max_slider 
+                            //     = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
+                            //     //.clamp_to_range(true)
+                            //     .fixed_decimals(1);
+                            // ui.add(fft_max_slider);
+                            // ui.separator();
                         }
                         
                         
