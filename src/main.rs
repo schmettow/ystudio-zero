@@ -63,7 +63,8 @@ fn main() {
                 selected_port: None,
                 selected_version: None,
                 selected_channels: [true; 8], // <-- crashes, when differently
-                selected_bank: 0,
+                selected_bank: 1,
+                view: DataView::Plot,
                 lowpass_threshold: 45.,
                 fft_min: 2.,
                 fft_max: 40.,
