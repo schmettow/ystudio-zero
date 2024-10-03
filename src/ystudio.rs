@@ -480,7 +480,8 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 
                 // Reading from YLab, showing the port, version and sample rate
                 YLabState::Reading {version, port_name}
-                    => {let yld_wind = ystud.yld_wind.lock().unwrap();
+                    => {
+                        let yld_wind = ystud.yld_wind.lock().unwrap();
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
                         // Stop reading
