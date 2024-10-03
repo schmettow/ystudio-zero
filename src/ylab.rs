@@ -210,7 +210,8 @@ pub fn ylab_thread(
                 // incorrect! problem: There is often a keyboard on serial, so it is never empty.
                 match avail_ports {
                     None => { 
-                        // no ports: try again in 500ms, no transition
+                        thread::sleep(Duration::from_millis(100));
+                        // no ports: try again in 100ms, no transition
                     },
                     Some(found) => {
                         // ports found: transition to Disconnected with available ports
@@ -222,7 +223,6 @@ pub fn ylab_thread(
                                                         ports: Some(port_names)};
                     },
                 }
-                thread::sleep(Duration::from_millis(100));
                 },
             
             (YLabState::Disconnected { ports: Some(_) }, 
@@ -306,13 +306,18 @@ pub fn ylab_thread(
 
                    
             (YLabState::Reading {version, port_name},
-            Some(YLabCmd::Stop {  })) 
+            Some(YLabCmd::Disconnect {  })) 
             => {*ylab_state.lock().unwrap() = YLabState::Connected{version, port_name};//YLabState::Disconnected{ports: None};
                 let this_serial = bufreader.lock().unwrap().take().unwrap().into_inner();
                 *serialport.lock().unwrap() = Some(this_serial); // It has been taken, so we put it back
                 *bufreader.lock().unwrap() = None;
                 println!("Stopped reading");
+                *ylab_state.lock().unwrap() = YLabState::Disconnected { ports: None };
+                *bufreader.lock().unwrap() = None;
+                *serialport.lock().unwrap() = None;
+                println!("Disconnected");
                 },
+
             // Disconnect on command
             (YLabState::Connected{version:_, port_name:_},
                 Some(YLabCmd::Disconnect{})) 
