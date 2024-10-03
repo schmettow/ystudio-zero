@@ -495,7 +495,7 @@ pub mod data {
             let sensory = cols[1].trim().parse::<u8>();
             if sensory.is_err() {return Err(ParseError::Sensory(cols[1].to_string()))}
             // reading the remaining 8 cols
-            let mut read: [f64; 8] = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+            let mut read: [f64; 8] = [0.,0.,0.,0.,0.,0.,0.,0.];
             for chn in 0..8 {
                 // parse value
                 let value 
