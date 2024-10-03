@@ -485,10 +485,11 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
                         // Stop reading
-                        if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap();
+                        if ui.button("Disconnect").on_hover_text("Disconnects YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Disconnect {}).unwrap();
                             ui_state.view = DataView::None;
-                            println!("Cmd: Stop")};
+                            //println!("Cmd: Stop")
+                        };
                         ui.separator();
 
                         // View
