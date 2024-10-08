@@ -131,6 +131,251 @@ const LINE_COLORS: [Color32; 8]
 
 
 
+
+/// YLAB CONTROL in the right panel
+/// + Connecting; reading and disconnecting
+///
+pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
+    egui::SidePanel::right("left_right_panel")
+        .show(ctx,|ui| {
+            let mut ui_state = ystud.ui.lock().unwrap();
+            let ylab_state = ystud.ylab_state.lock().unwrap();
+            // setting defaults
+            let selected_version 
+                = match ui_state.selected_version.clone() {
+                    Some(version) => version,
+                    None => YLabVersion::Go,};
+            
+            match ylab_state.clone() {
+                // Selecting port and YLab version
+                // When both are selected, the connect button is shown
+                YLabState::Disconnected {ports}
+                    => {ui.heading("Disconnected");              
+                        // When ports are available, show the options
+                        match ports {
+                            None => {ui.label("Searching ports");
+                                    eprintln!("No ports available");},
+                            Some(ports) 
+                                => {
+                                // unpacking version and port
+                                let selected_port: Option<String> 
+                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
+                                    = match ui_state.selected_port.clone() {
+                                        // in case there is a user-selected port, use it
+                                        Some(port) => Some(port),
+                                        // otherwise use the first available port
+                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
+                                                else {None},
+                                    };
+                                // one selectable label for each port
+                                ui.label("Available Ports");
+                                for i in ports.iter() {
+                                    // Create a selectable label for each port
+                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
+                                                                                i.to_string())).clicked() { 
+                                        ui_state.selected_port = Some(i.clone())
+                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
+                                    }
+                                };
+                                ui.separator();
+                                // one selectable per version
+                                ui.label("Version");
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Pro);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::ProMotion(1), "Pro Motion 1")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::ProMotion(1));
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Go);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoMotion(4), "Go Motion 4")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::GoMotion(4));
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoStress, "Go Stress")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::GoStress);
+                                }
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Mini);
+                                }
+                                ui.separator();
+                                // The button is only shown when version and port are selected (which currently is by default).
+                                // It commits the connection command to the YLab thread.
+                                //match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
+                                match (ui_state.selected_version, ui_state.selected_port.clone())  {
+                                    (Some(version), Some(port)) 
+                                        =>  if ui.button("Connect")
+                                                .on_hover_text("Connect to YLab")
+                                                .clicked()  {
+                                                    ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();
+                                                },
+                                        _ => {ui.label("Select port and version");}
+                                }
+                                 
+                            } 
+                        }
+                    },
+                // Connected to YLab by selecting port and version
+                YLabState::Connected {version, port_name}
+                    => {ui.heading("Connected");
+                        ui.label(format!("{}:{}", version, port_name));
+                        if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
+                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
+                        },
+                
+                // Reading from YLab, showing the port, version and sample rate
+                YLabState::Reading {version, port_name}
+                    => {
+                        // Get incoming data
+                        let yld_wind = ystud.yld_wind.lock().unwrap();
+                        // Info header
+                        ui.heading("Reading");
+                        ui.label(format!("{}:{}", version, port_name));
+                        // Disconnect
+                        if ui.button("Disconnect").on_hover_text("Disconnects YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Disconnect {}).unwrap();
+                            ui_state.view = DataView::None;
+                            //println!("Cmd: Stop")
+                        };
+                        ui.separator();
+
+                        // View
+                        ui.label("View");
+                        egui::ComboBox::from_label("select View")
+                            .selected_text(format!("{:?}", ui_state.view))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut ui_state.view, DataView::PlotFft, "Plot + FFT");
+                                ui.selectable_value(&mut ui_state.view, DataView::Plot, "Plot");
+                                ui.selectable_value(&mut ui_state.view, DataView::Log, "Log");
+                                ui.selectable_value(&mut ui_state.view, DataView::None, "None");
+                            });
+                        // Bank selector (if more than one)
+                        let n_banks = version.n_banks();
+                        
+                        if n_banks > 1 {
+                            ui.heading("Sensory");
+                            ui.add(egui::Slider::new(&mut ui_state.selected_bank, 1..=(version.n_banks())).text(""));
+                            ui.label(format!("Sensory {} of {}", &ui_state.selected_bank, n_banks));
+                            ui.separator();
+                        }
+
+                        /*let bank_slider: egui::Slider<'_> 
+                            = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=7)
+                            .clamp_to_range(true)
+                            .fixed_decimals(0);*/
+                        
+                        //println!("Banks");
+                        /*let banks = version.bank_labels();
+                        println!("Selected Banks");
+                        for (bank, label) in  banks.iter().enumerate() {
+                            ui.checkbox( &mut ui_state.selected_bank, label.to_string());
+                        };*/
+                        
+                        
+                        // Selecting channels to plot
+                        ui.heading("Channels");
+                        let selected_channels = ui_state.selected_channels.clone();
+                        for (chan, _label) in  selected_channels.iter().enumerate() {
+                            //ui.menu_image_text_button(image, title, add_contents)
+                            ui.horizontal(|ui| {
+                                ui.checkbox( &mut ui_state.selected_channels[chan], "");
+                                // ui.checkbox(&mut checked, &label);
+                                // Set the color for the label
+                                ui.label(egui::RichText::new(chan.to_string()).color(LINE_COLORS[chan]));
+                            });
+                        };
+                        
+                        if ui_state.selected_bank > 0 {
+                            let buffer_size = yld_wind.len()/8;
+                            
+                            
+                            /*
+                            // Check for buffer under-run
+                            if buffer_size < version.fft_size() {
+                                ui.label("still buffering");
+                                if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
+                                    ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
+                                    println!("Cmd: Stop")};
+                                return;
+                            }
+                             */
+                            
+                            
+                            let duration = yld_wind.duration() as f64; // <------ Should be based on YTF stream
+                            let sample_rate = buffer_size as f64/duration;
+                            let nyquist = sample_rate/2.; 
+                            let low_limit = duration/2.; 
+                            ui.separator();
+                            ui.label(format!("{} Hz per channel", sample_rate as usize));
+                            ui.separator();
+
+                            ui.heading("Raw signal");
+                            // Slider for low-pass filter
+                            ui.label("Low-pass filter (Hz)");
+                            //let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap(); 
+                            let lowpass_slider 
+                                = egui::widgets::Slider::new(&mut ui_state.lowpass_threshold, low_limit..=nyquist)
+                                //.clamp_to_range(true)
+                                .logarithmic(true)
+                                .fixed_decimals(3);
+                            ui.add(lowpass_slider);
+                            
+                            // ui.separator();
+                            // ui.heading("FFT");
+                            // // Sliders for FFT range
+                            // ui.label("min (Hz)");
+                            // let min_range = 0. ..=(nyquist - 5.);
+                            // let fft_min_slider 
+                            //     = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
+                            //     //.clamping(true)
+                            //     .logarithmic(true)
+                            //     .fixed_decimals(3);
+                            // ui.add(fft_min_slider);
+
+                            // ui.label("max (Hz)");
+                            // let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
+                            // let fft_max_slider 
+                            //     = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
+                            //     //.clamp_to_range(true)
+                            //     .fixed_decimals(1);
+                            // ui.add(fft_max_slider);
+                            // ui.separator();
+                        }
+                        
+                        
+                        ui.heading("Recording");
+                        // Start or stop recording
+                        // asking the state of recording thread
+                        let yldest_state = ystud.yldest_state.lock().unwrap().clone();
+                        match yldest_state {
+                            YldestState::Idle{ dir: Some(_dir) }
+                            => {
+                                ui.label("Idle");
+                                if ui.button("New Rec")
+                                    .on_hover_text("Start a new recording")
+                                    .clicked() {
+                                        let dir = std::env::current_dir().unwrap();
+                                        ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
+                                }
+                            },
+                            YldestState::Recording { path }
+                            => {
+                                ui.label(format!("Recording to {}", path.to_str().unwrap()));
+                                if ui.button("Stop Rec").on_hover_text("Stop recording").clicked() {
+                                        ystud.yldest_cmd.send(YldestCmd::Stop).unwrap();}
+                            },
+                            _ => {}
+                        }
+                    },
+
+                
+                }
+            });
+        }
+
+
 /// updates the plotting area
 /// 
 /// + one line per active channel
@@ -147,7 +392,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
             => {// Handle an empty buffer
                 let incoming= ystud.yld_wind.lock().unwrap().clone();
                 if incoming.is_empty() {
-                    ui.label(format!("buffer empty"));
+                    ui.label(format!("Sensory buffer empty"));
                     return
                 }
                 let incoming 
@@ -155,12 +400,12 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                             [ui_state.selected_bank as usize];
                 
                 if incoming.is_empty() {
-                    ui.label(format!("buffer empty"));
+                    ui.label(format!("Sensory buffer empty"));
                     return       // very important! Otherwise the below can crash because of emtoy buffer
                 }
 
                 //let incoming= &ystud.ytf_wind.lock().unwrap().clone()[ui_state.selected_bank as usize];
-                ui.label(format!("Bank {}", ui_state.selected_bank));
+                ui.label(format!("Sensory {}", ui_state.selected_bank));
                 // Split inconing history into points series
                 
                 match ui_state.view {
@@ -176,7 +421,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                     [ui_state.selected_bank as usize];
                         
                             if incoming.is_empty() {
-                                ui.label(format!("buffer empty"));
+                                ui.label(format!("Sensory buffer empty"));
                                 return
                                 }
 
@@ -385,246 +630,10 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 
 
 
-/// YLAB CONTROL in the right panel
-/// + Connecting; reading and disconnecting
-///
-pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
-    egui::SidePanel::right("left_right_panel")
-        .show(ctx,|ui| {
-            let mut ui_state = ystud.ui.lock().unwrap();
-            let ylab_state = ystud.ylab_state.lock().unwrap();
-            // setting defaults
-            let selected_version 
-                = match ui_state.selected_version.clone() {
-                    Some(version) => version,
-                    None => YLabVersion::Go,};
-            
-            match ylab_state.clone() {
-                // Selecting port and YLab version
-                // When both are selected, the connect button is shown
-                YLabState::Disconnected {ports}
-                    => {ui.heading("Disconnected");              
-                        // When ports are available, show the options
-                        match ports {
-                            None => {ui.label("Searching ports");
-                                    eprintln!("No ports available");},
-                            Some(ports) 
-                                => {
-                                // unpacking version and port
-                                let selected_port: Option<String> 
-                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
-                                    = match ui_state.selected_port.clone() {
-                                        // in case there is a user-selected port, use it
-                                        Some(port) => Some(port),
-                                        // otherwise use the first available port
-                                        None => if ports.len() > 0 {Some(ports[0].to_string())}
-                                                else {None},
-                                    };
-                                // one selectable label for each port
-                                ui.label("Available Ports");
-                                for i in ports.iter() {
-                                    // Create a selectable label for each port
-                                    if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
-                                                                                i.to_string())).clicked() { 
-                                        ui_state.selected_port = Some(i.clone())
-                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
-                                    }
-                                };
-                                ui.separator();
-                                // one selectable per version
-                                ui.label("Version");
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Pro);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::ProMotion(1), "Pro Motion 1")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::ProMotion(1));
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Go);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoMotion(4), "Go Motion 4")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::GoMotion(4));
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::GoStress, "Go Stress")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::GoStress);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Mini, "Mini")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::Mini);
-                                }
-                                ui.separator();
-                                // The button is only shown when version and port are selected (which currently is by default).
-                                // It commits the connection command to the YLab thread.
-                                //match ( ystud.ui.selected_version.lock().unwrap().clone(), ystud.ui.selected_port.lock().unwrap().clone())  {
-                                match (ui_state.selected_version, ui_state.selected_port.clone())  {
-                                    (Some(version), Some(port)) 
-                                        =>  if ui.button("Connect")
-                                                .on_hover_text("Connect to YLab")
-                                                .clicked()  {
-                                                    ystud.ylab_cmd.send(  YLabCmd::Connect {version: version, port_name: port.to_string()}).unwrap();
-                                                },
-                                        _ => {ui.label("Select port and version");}
-                                }
-                                 
-                            } 
-                        }
-                    },
-                // Connected to YLab by selecting port and version
-                YLabState::Connected {version, port_name}
-                    => {ui.heading("Connected");
-                        ui.label(format!("{}:{}", version, port_name));
-                        if ui.button("Disconnect").on_hover_text("Disconnect YLab").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Disconnect{}).unwrap();}
-                        if ui.button("Read").on_hover_text("Read from YLab").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Read{}).unwrap();}
-                        },
-                
-                // Reading from YLab, showing the port, version and sample rate
-                YLabState::Reading {version, port_name}
-                    => {
-                        let yld_wind = ystud.yld_wind.lock().unwrap();
-                        ui.heading("Reading");
-                        ui.label(format!("{}:{}", version, port_name));
-                        // Stop reading
-                        if ui.button("Disconnect").on_hover_text("Disconnects YLab").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Disconnect {}).unwrap();
-                            ui_state.view = DataView::None;
-                            //println!("Cmd: Stop")
-                        };
-                        ui.separator();
 
-                        // View
-                        ui.label("View");
-                        egui::ComboBox::from_label("select View")
-                            .selected_text(format!("{:?}", ui_state.view))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut ui_state.view, DataView::PlotFft, "Plot + FFT");
-                                ui.selectable_value(&mut ui_state.view, DataView::Plot, "Plot");
-                                ui.selectable_value(&mut ui_state.view, DataView::Log, "Log");
-                                ui.selectable_value(&mut ui_state.view, DataView::None, "None");
-                            });
-                        // Bank selector (if more than one)
-                        let n_banks = version.n_banks();
-                        
-                        if n_banks > 1 {
-                            ui.heading("Sensory");
-                            ui.add(egui::Slider::new(&mut ui_state.selected_bank, 1..=(version.n_banks())).text(""));
-                            ui.label(format!("Sensory {} of {}", &ui_state.selected_bank, n_banks));
-                            ui.separator();
-                        }
-
-                        /*let bank_slider: egui::Slider<'_> 
-                            = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=7)
-                            .clamp_to_range(true)
-                            .fixed_decimals(0);*/
-                        
-                        //println!("Banks");
-                        /*let banks = version.bank_labels();
-                        println!("Selected Banks");
-                        for (bank, label) in  banks.iter().enumerate() {
-                            ui.checkbox( &mut ui_state.selected_bank, label.to_string());
-                        };*/
-                        
-                        
-                        // Selecting channels to plot
-                        ui.heading("Channels");
-                        let selected_channels = ui_state.selected_channels.clone();
-                        for (chan, _label) in  selected_channels.iter().enumerate() {
-                            //ui.menu_image_text_button(image, title, add_contents)
-                            ui.horizontal(|ui| {
-                                ui.checkbox( &mut ui_state.selected_channels[chan], "");
-                                // ui.checkbox(&mut checked, &label);
-                                // Set the color for the label
-                                ui.label(egui::RichText::new(chan.to_string()).color(LINE_COLORS[chan]));
-                            });
-                        };
-                        
-                        if ui_state.selected_bank > 0 {
-                            let buffer_size = yld_wind.len()/8;
-                            // Check for buffer under-run
-                            if buffer_size < version.fft_size() {
-                                ui.label("still buffering");
-                                if ui.button("Stop Reading").on_hover_text("Stop reading").clicked(){
-                                    ystud.ylab_cmd.send(YLabCmd::Stop {}).unwrap(); 
-                                    println!("Cmd: Stop")};
-                                return;
-                            }
-                            
-                            
-                            let duration = yld_wind.duration() as f64; // <------ Should be based on YTF stream
-                            let sample_rate = buffer_size as f64/duration;
-                            let nyquist = sample_rate/2.; 
-                            let low_limit = duration/2.; 
-                            ui.separator();
-                            ui.label(format!("{} Hz per channel", sample_rate as usize));
-                            ui.separator();
-
-                            
-                            ui.heading("Raw signal");
-                            // Slider for low-pass filter
-                            ui.label("Low-pass filter (Hz)");
-                            //let mut this_lowpass = ystud.ui.lowpass_threshold.lock().unwrap(); 
-                            let lowpass_slider 
-                                = egui::widgets::Slider::new(&mut ui_state.lowpass_threshold, low_limit..=nyquist)
-                                //.clamp_to_range(true)
-                                .logarithmic(true)
-                                .fixed_decimals(3);
-                            ui.add(lowpass_slider);
-                            
-                            // ui.separator();
-                            // ui.heading("FFT");
-                            // // Sliders for FFT range
-                            // ui.label("min (Hz)");
-                            // let min_range = 0. ..=(nyquist - 5.);
-                            // let fft_min_slider 
-                            //     = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
-                            //     //.clamping(true)
-                            //     .logarithmic(true)
-                            //     .fixed_decimals(3);
-                            // ui.add(fft_min_slider);
-
-                            // ui.label("max (Hz)");
-                            // let max_range = (ui_state.fft_min + 2.)..=(nyquist - 5.);
-                            // let fft_max_slider 
-                            //     = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
-                            //     //.clamp_to_range(true)
-                            //     .fixed_decimals(1);
-                            // ui.add(fft_max_slider);
-                            // ui.separator();
-                        }
-                        
-                        
-                        ui.heading("Recording");
-                        // Start or stop recording
-                        // asking the state of recording thread
-                        let yldest_state = ystud.yldest_state.lock().unwrap().clone();
-                        match yldest_state {
-                            YldestState::Idle{ dir: Some(_dir) }
-                            => {
-                                ui.label("Idle");
-                                if ui.button("New Rec")
-                                    .on_hover_text("Start a new recording")
-                                    .clicked() {
-                                        let dir = std::env::current_dir().unwrap();
-                                        ystud.yldest_cmd.send(YldestCmd::New {change_dir: Some(dir), file_name: None}).unwrap()
-                                }
-                            },
-                            YldestState::Recording { path }
-                            => {
-                                ui.label(format!("Recording to {}", path.to_str().unwrap()));
-                                if ui.button("Stop Rec").on_hover_text("Stop recording").clicked() {
-                                        ystud.yldest_cmd.send(YldestCmd::Stop).unwrap();}
-                            },
-                            _ => {}
-                        }
-                    },
-
-                
-                }
-            });
-        }
-
-#[allow(unused_imports)]
-use egui_file::FileDialog;
+/// Updates left control area (unused)
+/// 
+/// 
 
 #[allow(dead_code)]
 pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
@@ -637,7 +646,7 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
             match (ylab_state, yldest_state) {
                 // show New button when Reading and Idle
                 (YLabState::Reading {version:_, port_name:_},
-                 YldestState::Idle {dir: Some(_)})
+                    YldestState::Idle {dir: Some(_)})
                     => {
                         ui.label("Idle");
                         if ui.button("New Recording").on_hover_text("Start a new recording").clicked() {
@@ -646,13 +655,19 @@ pub fn update_left_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         }},
                 // show path and stop button when recording
                 (YLabState::Reading {version:_, port_name:_},
-                 YldestState::Recording {path}) 
+                    YldestState::Recording {path}) 
                 => {
-                   ui.label(format!("Recording to {}", path.to_str().unwrap()));
-                   if ui.button("Stop").on_hover_text("Stop recording").clicked() {
+                    ui.label(format!("Recording to {}", path.to_str().unwrap()));
+                    if ui.button("Stop").on_hover_text("Stop recording").clicked() {
                         ystud.yldest_cmd.send(YldestCmd::Stop).unwrap();}},
                 (_,_) => {},
             }
         }
     );
 }
+        
+
+
+#[allow(unused_imports)]
+use egui_file::FileDialog;
+
