@@ -69,13 +69,13 @@ impl Sensory {
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum YLabVersion {Pro, ProMotion(u8), Go, GoMotion(u8), GoStress, Mini}
+pub enum YLabVersion {Zet, Pro, Go, GoMotion(u8), GoStress, Mini}
 
 impl YLabVersion {
     pub fn baud(&self) -> u32 {
         match *self {
             YLabVersion::Pro => 2_000_000,
-            YLabVersion::ProMotion(_) => 2_000_000,
+            YLabVersion::Zet => 2_000_000,
             YLabVersion::Go => 1_000_000,
             YLabVersion::GoMotion(_) => 1_000_000,
             YLabVersion::GoStress => 1_000_000,
@@ -86,8 +86,19 @@ impl YLabVersion {
     pub fn fft_size(&self) -> usize {
         match *self {
             YLabVersion::Pro => 512,
-            YLabVersion::ProMotion(_) => 128,
-            YLabVersion::Go => 512,
+            YLabVersion::Zet => 256,
+            YLabVersion::Go => 256,
+            YLabVersion::GoMotion(_) => 128,
+            YLabVersion::GoStress => 256,
+            YLabVersion::Mini => 128,
+        }
+    }
+
+    pub fn history_size(&self) -> usize {
+        match *self {
+            YLabVersion::Pro => 512,
+            YLabVersion::Zet => 256,
+            YLabVersion::Go => 256,
             YLabVersion::GoMotion(_) => 128,
             YLabVersion::GoStress => 256,
             YLabVersion::Mini => 128,
@@ -98,8 +109,7 @@ impl YLabVersion {
     pub fn bank_labels(&self) -> Vec<&str> {
         match *self {
             YLabVersion::Pro => vec!["MOI", "ADC"],
-            YLabVersion::ProMotion(1) => vec!["MOI", "Analog", "Yxz"],
-            YLabVersion::ProMotion(_) => todo!(),
+            YLabVersion::Zet => vec!["MOI", "ADC1", "ADC2", "Mo1", "Mo2"],
             YLabVersion::Go => vec!["MOI", "ADC"],
             YLabVersion::GoMotion(1) => vec!["MOI", "Analog", "Yxz"],
             YLabVersion::GoMotion(4) => vec!["MOI", "Analog", "Yxz_0", "Yxz_1", "Yxz_2", "Yxz_3"],
@@ -121,7 +131,7 @@ impl fmt::Display for YLabVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             YLabVersion::Pro => write!(f, "Pro"),
-            YLabVersion::ProMotion(n) => write!(f, "Pro Motion {}", n),
+            YLabVersion::Zet => write!(f, "Zet"),
             YLabVersion::Go => write!(f, "Go"),
             YLabVersion::GoMotion(n) => write!(f, "Go Motion {}", n),
             YLabVersion::GoStress => write!(f, "Go Stress"),
@@ -320,7 +330,7 @@ pub fn ylab_thread(
 
             // Disconnect on command
             (YLabState::Connected{version:_, port_name:_},
-                Some(YLabCmd::Disconnect{})) 
+                Some(YLabCmd::Disconnect{}))
                 => {
                     *ylab_state.lock().unwrap() = YLabState::Disconnected { ports: None };
                     *bufreader.lock().unwrap() = None;

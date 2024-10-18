@@ -23,9 +23,8 @@ use log::{info, warn, debug, error};
 /// 3. a Yld channel for sending data from Ylab to to Yldest
 /// 4. a Yld History for sharing a sliding window with the GUI
 
-/// fixed window sizes, could be made dynamic at a later point
+/// fixed window sizes, should be made dynamic at a later point
 const YLD_WIND_LEN:usize = 20_000;
-/// used for FFT, so must be power of two
 const YTF_WIND_LEN:usize = 1_000_000;
 
 fn main() {

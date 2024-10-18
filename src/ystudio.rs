@@ -120,13 +120,13 @@ pub fn egui_init(ystud: Ystudio) {
 use egui::ecolor::Color32;
 const LINE_COLORS: [Color32; 8] 
     = [Color32::BLACK,
-       Color32::DARK_BLUE,
-       Color32::DARK_GREEN,
-       Color32::DARK_RED,
-       Color32::DARK_GRAY,
        Color32::BLUE,
        Color32::GREEN,
-       Color32::RED
+       Color32::RED,
+       Color32::GRAY,
+       Color32::DARK_BLUE,
+       Color32::DARK_GREEN,
+       Color32::DARK_RED
         ];
 
 
@@ -158,8 +158,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             Some(ports) 
                                 => {
                                 // unpacking version and port
-                                let selected_port: Option<String> 
-                                    //= match ystud.ui.selected_port.lock().unwrap().clone() {
+                                let selected_port: Option<String>
                                     = match ui_state.selected_port.clone() {
                                         // in case there is a user-selected port, use it
                                         Some(port) => Some(port),
@@ -167,6 +166,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                         None => if ports.len() > 0 {Some(ports[0].to_string())}
                                                 else {None},
                                     };
+                                
                                 // one selectable label for each port
                                 ui.label("Available Ports");
                                 for i in ports.iter() {
@@ -174,17 +174,17 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                     if ui.add(egui::SelectableLabel::new(selected_port == Some((*i).to_string()), 
                                                                                 i.to_string())).clicked() { 
                                         ui_state.selected_port = Some(i.clone())
-                                        //*ystud.ui.selected_port.lock().unwrap() = Some(i.clone());
                                     }
                                 };
                                 ui.separator();
+
                                 // one selectable per version
                                 ui.label("Version");
+                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Zet, "Zet")).clicked() { 
+                                    ui_state.selected_version = Some(YLabVersion::Zet);
+                                }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Pro, "Pro")).clicked() { 
                                     ui_state.selected_version = Some(YLabVersion::Pro);
-                                }
-                                if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::ProMotion(1), "Pro Motion 1")).clicked() { 
-                                    ui_state.selected_version = Some(YLabVersion::ProMotion(1));
                                 }
                                 if ui.add(egui::SelectableLabel::new(selected_version == YLabVersion::Go, "Go")).clicked() { 
                                     ui_state.selected_version = Some(YLabVersion::Go);
