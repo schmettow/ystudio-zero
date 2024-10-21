@@ -57,9 +57,6 @@ pub struct Ystudio {
 
 /// Data for the UI
 /// 
-/// This is sometimes necessary to hold several values in the UI 
-/// (port, Version) before submitting the command to YLab
-/// 
 /// 
 /// Structure holding the parameters of the ui
 /// 
