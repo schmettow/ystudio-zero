@@ -50,8 +50,8 @@ pub struct Ystudio {
     pub ylab_cmd: Sender<YLabCmd>, // sending commands to ylab
     pub yldest_state: Arc<Mutex<YldestState>>, // shared state
     pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
-    pub yld_wind: Arc<Mutex<History<Yld>>>, // data stream, sort of temporal vecdeque
-    pub ytf_wind: Arc<Mutex<Banks>>, // data stream, sort of temporal vecdeque, one per sensory
+    pub yld_wind: Option<Arc<Mutex<History<Yld>>>>, // data stream, sort of temporal vecdeque
+    pub ytf_wind: Option<Arc<Mutex<Banks>>>, // data stream, sort of temporal vecdeque, one per sensory
     pub ui: Arc<Mutex<Yui>>, // ui parameters with outer lock, more convenient
 }
 
@@ -225,19 +225,11 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 // Reading from YLab, showing the port, version and sample rate
                 YLabState::Reading {version, port_name}
                     => {
-                        // Get incoming data
-                        let yld_wind = ystud.yld_wind.lock().unwrap();
-                        // Info header
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
-                        // Disconnect
-                        if ui.button("Disconnect").on_hover_text("Disconnects YLab").clicked(){
-                            ystud.ylab_cmd.send(YLabCmd::Disconnect {}).unwrap();
-                            ui_state.view = DataView::None;
-                            //println!("Cmd: Stop")
-                        };
-                        ui.separator();
-
+                        let yld_wind = ystud.yld_wind.as_ref().expect("YLD is None");
+                        // Get incoming data
+                    
                         // View
                         ui.label("View");
                         egui::ComboBox::from_label("select View")
@@ -257,6 +249,17 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             ui.label(format!("Sensory {} of {}", &ui_state.selected_bank, n_banks));
                             ui.separator();
                         }
+                    
+
+                        // Disconnect
+                        if ui.button("Disconnect").on_hover_text("Disconnects YLab").clicked(){
+                            ystud.ylab_cmd.send(YLabCmd::Disconnect {}).unwrap();
+                            ui_state.view = DataView::None;
+                            //println!("Cmd: Stop")
+                        };
+                        ui.separator();
+
+                        
 
                         /*let bank_slider: egui::Slider<'_> 
                             = egui::widgets::Slider::new(&mut ui_state.selected_bank, 0..=7)
@@ -283,8 +286,10 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 ui.label(egui::RichText::new(chan.to_string()).color(LINE_COLORS[chan]));
                             });
                         };
-                        
+
+
                         if ui_state.selected_bank > 0 {
+                            let yld_wind = yld_wind.lock().unwrap();
                             let buffer_size = yld_wind.len()/8;
                             
                             
@@ -380,29 +385,31 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) 
 {   egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
-        let ui_state = ystud.ui.lock().unwrap();
+        let ui_state = ystud.ui.lock().unwrap().clone();
+        let yld_wind = ystud.yld_wind.as_ref();
+        let ytf_wind = ystud.ytf_wind.as_ref();
+        let selected = ui_state.selected_bank as usize;
     
         match ystud.ylab_state.lock().unwrap().clone() {
             YLabState::Connected {version: _, port_name: _} => {
             },
             YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
-                let incoming= ystud.yld_wind.lock().unwrap().clone();
+                let incoming= yld_wind.expect("YLD is None").lock().unwrap().clone();
                 if incoming.is_empty() {
                     ui.label(format!("Sensory buffer empty"));
                     return
                 }
-                let incoming 
-                        = &ystud.ytf_wind.lock().unwrap().clone()
-                            [ui_state.selected_bank as usize];
+                let sensory 
+                        = &ytf_wind.expect("YTF is None").lock().unwrap().clone()[selected];
                 
-                if incoming.is_empty() {
-                    ui.label(format!("Sensory buffer empty"));
+                if sensory.is_empty() {
+                    ui.label(format!("No sensory histories available"));
                     return       // very important! Otherwise the below can crash because of emtoy buffer
                 }
 
                 //let incoming= &ystud.ytf_wind.lock().unwrap().clone()[ui_state.selected_bank as usize];
-                ui.label(format!("Sensory {}", ui_state.selected_bank));
+                ui.label(format!("Sensory {}", selected));
                 // Split inconing history into points series
                 
                 match ui_state.view {
@@ -413,10 +420,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                         .max_height(ui.available_height() - 30.0)
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
-                            let incoming 
-                                = &ystud.ytf_wind.lock().unwrap().clone()
-                                    [ui_state.selected_bank as usize];
-                        
                             if incoming.is_empty() {
                                 ui.label(format!("Sensory buffer empty"));
                                 return

@@ -191,8 +191,8 @@ use egui::emath::History;
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>, // shared state
     ylab_listen: mpsc::Receiver<YLabCmd>,  // receiving comands
-    yld_wind: Arc<Mutex<History<data::Yld>>>, // Yld history shared with UI (FFT) and storage
-    ytf_wind: Arc<Mutex<data::Banks>>, // Ytf8 history to share with UI (plot)
+    yld_wind: Option<Arc<Mutex<History<data::Yld>>>>, // Yld history shared with UI (FFT) and storage
+    ytf_wind: Option<Arc<Mutex<data::Banks>>>, // Ytf8 history to share with UI (plot)
     yld_st: mpsc::Sender<data::Yld>, // sending data to storage
     ) -> ! {
     
@@ -292,25 +292,30 @@ pub fn ylab_thread(
                                         Err(e) => {eprintln!("Not Ytf8: {:?}", e); continue}
                                         // Ytf8 line,
                                         Ok(sample) => {
-                                            let ystudio_time = Instant::now().duration_since(start_time);
-                                            let bank = sample.sensory;
-                                            if (bank as usize) < version.bank_labels().len() {
+                                            if let Some(ref ytf_wind) = ytf_wind {
+                                                let ystudio_time = Instant::now().duration_since(start_time);
+                                                let bank = sample.sensory;
+                                                if (bank as usize) < version.bank_labels().len() {
                                                 ytf_wind.lock().unwrap()[bank as usize]
                                                         .add(ystudio_time.as_secs_f64(), sample.clone());
+                                            } else {panic!("YTF history is None")};
+                                            
                                             //ytf_out.send(sample).unwrap();
-}
-                                            let yld = sample.to_yld(ystudio_time);
-                                            for measure in yld.iter() {
-                                                yld_wind.lock().unwrap()
-                                                        .add(ystudio_time.as_secs_f64(), measure.clone());
-                                                yld_st.send(measure.clone()).unwrap();
-                                                }
+}                                           if let Some(ref yld_wind) = yld_wind {
+                                                let ystudio_time = Instant::now().duration_since(start_time);
+                                                let yld = sample.to_yld(ystudio_time);
+                                                for measure in yld.iter() {
+                                                    yld_wind.lock().unwrap()
+                                                            .add(ystudio_time.as_secs_f64(), measure.clone());
+                                                    yld_st.send(measure.clone()).unwrap();
+                                                    }
+                                                } else {panic!("YTF history is None")};
+                                            } 
                                             }
                                         }
                                     }
                                 }
-                            }
-                    },
+                            },
                 
                         
 
@@ -329,16 +334,18 @@ pub fn ylab_thread(
                 },
 
             // Disconnect on command
-            (YLabState::Connected{version:_, port_name:_},
+            /*(YLabState::Connected{version:_, port_name:_},
                 Some(YLabCmd::Disconnect{}))
                 => {
                     *ylab_state.lock().unwrap() = YLabState::Disconnected { ports: None };
                     *bufreader.lock().unwrap() = None;
                     *serialport.lock().unwrap() = None;
                     println!("Disconnected");
-                },	
+                },	*/
             (_,_)   => {},
-        }}}
+        }
+    }
+}
       
 
 /// YLab DATA

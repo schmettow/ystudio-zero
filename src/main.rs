@@ -24,8 +24,8 @@ use log::{info, warn, debug, error};
 /// 4. a Yld History for sharing a sliding window with the GUI
 
 /// fixed window sizes, should be made dynamic at a later point
-const YLD_WIND_LEN:usize = 20_000;
-const YTF_WIND_LEN:usize = 1_000_000;
+//const YLD_WIND_LEN:usize = 20_000;
+//const YTF_WIND_LEN:usize = 1_000_000;
 
 fn main() {
     println!("Hello Ystudio");
@@ -45,10 +45,10 @@ fn main() {
     let (yldest_send, yldest_rec) 
         = channel();
 
-    let ytf_wind 
+    /*let ytf_wind 
         = Arc::new(Mutex::new(make_banks(8, 5.0, YTF_WIND_LEN)));
     let yld_wind 
-        = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));
+        = Arc::new(Mutex::new(History::<Yld>::new(0..YLD_WIND_LEN,5.0)));*/
 
 
     let ystud = Ystudio {
@@ -56,8 +56,8 @@ fn main() {
         ylab_cmd,
         yldest_state: yldest_state.clone(),
         yldest_cmd,
-        yld_wind: yld_wind.clone(),
-        ytf_wind: ytf_wind.clone(),
+        yld_wind: None,//yld_wind.clone(),
+        ytf_wind: None,//ytf_wind.clone(),
         ui: Arc::new(Mutex::new(Yui {
                 selected_port: None,
                 selected_version: None,
@@ -84,8 +84,8 @@ fn main() {
         ylab_thread(
             ylab_state,
             ylab_listen,
-            yld_wind,
-            ytf_wind,
+            None,
+            None,
             yldest_send,
         );
     });
