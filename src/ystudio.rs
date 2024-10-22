@@ -496,7 +496,10 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
 
 /// updates bottom panel with FFT
 pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
-    
+    let ui_state = ystud.ui.lock().unwrap().clone();
+    let yld_wind = ystud.yld_wind.as_ref();
+    let ytf_wind = ystud.ytf_wind.as_ref();
+    let selected = ui_state.selected_bank as usize;
     egui::TopBottomPanel::bottom("bottom_panel")
         .show(ctx, |ui| {
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
@@ -509,9 +512,18 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                 (YLabState::Reading {version, port_name:_}, DataView::PlotFft)
                 => {ui.heading("Distribution of Frequencies");
                     // fetching data from YLab
-                    let incoming 
-                        = &ystud.ytf_wind.lock().unwrap().clone()
-                            [ui_state.selected_bank as usize]; 
+                    let incoming= yld_wind.expect("YLD is None").lock().unwrap().clone();
+                    if incoming.is_empty() {
+                        ui.label(format!("Sensory buffer empty"));
+                        return
+                    }
+                    let sensory 
+                            = &ytf_wind.expect("YTF is None").lock().unwrap().clone()[selected];
+                    
+                    if sensory.is_empty() {
+                        ui.label(format!("No sensory histories available"));
+                        return       // very important! Otherwise the below can crash because of emtoy buffer
+                    }
                     let duration = incoming.duration() as f64;
                     let n_samples = incoming.len();
                     let sample_rate= n_samples as f64/duration;
@@ -558,7 +570,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     // Collect the FFT window per channel
                     // Vector of channels of samples
                     let mut samples: Vec<Vec<f32>> = vec![vec![]; 8];
-                    for ytf8 in incoming.values().collect::<Vec<Ytf8>>()[0..fft_size].iter() {
+                    for ytf8 in sensory.values().collect::<Vec<Ytf8>>()[0..fft_size].iter() {
                         for (chan, active) in ui_state.selected_channels.iter().enumerate() {
                             if *active {samples[chan].push(ytf8.read[chan] as f32)}
                         }
