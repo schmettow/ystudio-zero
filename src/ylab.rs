@@ -402,7 +402,7 @@ pub mod data {
         fn split(&self) -> MultiLines<8>;
     }
 
-    /*impl SplitByChan for History<Yld>{
+    impl SplitByChan for History<Yld>{
         fn split(&self) -> MultiLines<8> {
             let mut out = new_multi_lines();
             for measure in self.iter() {
@@ -414,7 +414,7 @@ pub mod data {
             }
             return out;
         }
-    }*/
+    }
 
     impl SplitByChan for History<Ytf8>{
         fn split(&self) -> MultiLines<8> {
