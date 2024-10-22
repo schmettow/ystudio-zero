@@ -191,8 +191,8 @@ use egui::emath::History;
 pub fn ylab_thread(
     ylab_state: Arc<Mutex<YLabState>>, // shared state
     ylab_listen: mpsc::Receiver<YLabCmd>,  // receiving comands
-    yld_wind: Option<Arc<Mutex<History<data::Yld>>>>, // Yld history shared with UI (FFT) and storage
-    ytf_wind: Option<Arc<Mutex<data::Banks>>>, // Ytf8 history to share with UI (plot)
+    mut yld_wind: Option<Arc<Mutex<History<data::Yld>>>>, // Yld history shared with UI (FFT) and storage
+    mut ytf_wind: Option<Arc<Mutex<data::Banks>>>, // Ytf8 history to share with UI (plot)
     yld_st: mpsc::Sender<data::Yld>, // sending data to storage
     ) -> ! {
     
@@ -205,16 +205,16 @@ pub fn ylab_thread(
 
     loop {
        // capture YLab state and incoming commands from the UI
+        //let this_ylab_state = ylab_state.lock().unwrap()?;
         let this_ylab_state = ylab_state.lock().unwrap().clone();
         let this_cmd = ylab_listen.try_recv().ok();
         // match the current state and do the transitions
 
         // state changes on command
-        // beautiful!
+        
         match (this_ylab_state, this_cmd){
-            // Waiting for available ports and command
-            (YLabState::Disconnected { ports: _ }, 
-             None)
+            // Disconnected -> discover ports
+            (YLabState::Disconnected { ports: _ }, None)
             => {
                 let avail_ports = serialport::available_ports().ok();
                 // incorrect! problem: There is often a keyboard on serial, so it is never empty.
@@ -234,9 +234,8 @@ pub fn ylab_thread(
                     },
                 }
                 },
-            
-            (YLabState::Disconnected { ports: Some(_) }, 
-             Some(YLabCmd::Connect { version, port_name })) 
+            // Disconnected with available ports -> Connect on command
+            (YLabState::Disconnected { ports: Some(_) }, Some(YLabCmd::Connect { version, port_name })) 
             => { 
                 // We make one connection attempt to verify the port
                 // later we can add code for sending commands to the 
@@ -258,6 +257,9 @@ pub fn ylab_thread(
                             *ylab_state.lock().unwrap() = YLabState::Connected {
                                                             version: version, 
                                                             port_name: port_name.clone()};
+                            ytf_wind = Some(Arc::new(Mutex::new(data::make_banks(version.n_banks(), 5.0, version.history_size()))));
+                            yld_wind = Some(Arc::new(Mutex::new(History::<data::Yld>::new(0..version.fft_size(),5.0))));
+
                             println!("Connected to {}", port_name.clone());},
                             
                     };
@@ -362,6 +364,11 @@ pub mod data {
     /// + a sensory index (position in the bank)
     /// + one measurement value
     /// 
+    /// 
+    
+    pub type YldWind = Arc<Mutex<Option<Yld>>>;
+    pub type Ytf8Wind = Arc<Mutex<Option<Ytf8>>>;
+
     #[derive(Copy, Clone, Debug)]
     pub struct Yld {
         pub time: Duration,

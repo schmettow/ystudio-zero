@@ -50,8 +50,8 @@ pub struct Ystudio {
     pub ylab_cmd: Sender<YLabCmd>, // sending commands to ylab
     pub yldest_state: Arc<Mutex<YldestState>>, // shared state
     pub yldest_cmd: mpsc::Sender<YldestCmd>, // sending commands to control storage
-    pub yld_wind: Option<Arc<Mutex<History<Yld>>>>, // data stream, sort of temporal vecdeque
-    pub ytf_wind: Option<Arc<Mutex<Banks>>>, // data stream, sort of temporal vecdeque, one per sensory
+    pub yld_wind: YldWind, // data stream, sort of temporal vecdeque
+    pub ytf_wind: Ytf8Wind, // data stream, sort of temporal vecdeque, one per sensory
     pub ui: Arc<Mutex<Yui>>, // ui parameters with outer lock, more convenient
 }
 
@@ -227,7 +227,7 @@ pub fn update_right_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     => {
                         ui.heading("Reading");
                         ui.label(format!("{}:{}", version, port_name));
-                        let yld_wind = ystud.yld_wind.as_ref().expect("YLD is None");
+                        //let yld_wind = ystud.yld_wind.as_ref().expect("YLD is None");
                         // Get incoming data
                     
                         // View
@@ -395,15 +395,13 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
             },
             YLabState::Reading {version: _, port_name: _}
             => {// Handle an empty buffer
-                let incoming= yld_wind.expect("YLD is None").lock().unwrap().clone();
-                if incoming.is_empty() {
+                let yld_in = yld_wind.lock().unwrap().clone().expect("YLD window is None");
+                /*if yld_in.is_empty() {
                     ui.label(format!("Sensory buffer empty"));
                     return
-                }
-                let sensory 
-                        = &ytf_wind.expect("YTF is None").lock().unwrap().clone()[selected];
-                
-                if sensory.is_empty() {
+                }*/
+                let ytf_in = ytf_wind.lock().unwrap().clone().expect("YTF window is None").read;
+                if ytf_in.is_empty() {
                     ui.label(format!("No sensory histories available"));
                     return       // very important! Otherwise the below can crash because of emtoy buffer
                 }
@@ -420,12 +418,12 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                         .max_height(ui.available_height() - 30.0)
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
-                            if incoming.is_empty() {
+                            /*if ytf_in.is_empty() {
                                 ui.label(format!("Sensory buffer empty"));
                                 return
-                                }
+                                }*/
 
-                            for r in incoming.iter() {
+                            for r in ytf_in.iter() {
                                 let (_, ytf)  = r;
                                 ui.label(format!("{:?}", ytf));
                                 };
@@ -439,7 +437,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                 //.auto_bounds_y()
                                 .legend(egui_plot::Legend::default());
                                 plot.show(ui, |plot_ui| {                
-                                    let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer
+                                    let rate = ytf_in.rate().unwrap(); // safe because above we check for empty buffer
                                     let series  = incoming.split();
                                     for (chan, active) in ui_state.selected_channels.iter().enumerate() {
                                         // inactive channels
