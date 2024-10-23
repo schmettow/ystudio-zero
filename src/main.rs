@@ -1,22 +1,21 @@
 //#![windows_subsystem = "windows"]
 //mod yui;
-mod yldest;
-mod ylab;
-mod ystudio;
 mod builds;
+mod ylab;
+mod yldest;
+mod ystudio;
 
 //use builds::BUILDS;
-use ystudio::*;
+pub use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use ylab::*;
 use yldest::yldest_thread;
-pub use std::sync::mpsc::{channel, Sender, Receiver};
-use std::sync::{Arc, Mutex};
+use ystudio::*;
 
 #[allow(unused_imports)]
-use log::{info, warn, debug, error};
+use log::{debug, error, info, warn};
 
-
-/// Creating the channels and shared states for 
+/// Creating the channels and shared states for
 /// thread-safe communication with YLab and Yldest
 /// 1. mutexed states
 /// 2. command channels, cmd i used in gui, YLab/Yldest threads are listening
@@ -31,41 +30,38 @@ fn main() {
     println!("Hello Ystudio");
     eprintln!("and YLab");
     // states
-    let ylab_state 
-        = Arc::new(Mutex::new(YLabState::Disconnected {ports: None}));
-    let yldest_state 
-        = Arc::new(Mutex::new(YldestState::Idle{dir: std::env::current_dir().ok()}));
-    
+    let ylab_state = Arc::new(Mutex::new(YLabState::Disconnected { ports: None }));
+    let yldest_state = Arc::new(Mutex::new(YldestState::Idle {
+        dir: std::env::current_dir().ok(),
+    }));
+
     // command channels
-    let (ylab_cmd, ylab_listen) 
-        = channel();
+    let (ylab_cmd, ylab_listen) = channel();
     let (yldest_cmd, yldest_listen) = channel();
-    
+
     // data channel for storage
-    let (yldest_send, yldest_rec) 
-        = channel();
-    
+    let (yldest_send, yldest_rec) = channel();
+
     // Empty data channels
     let yld_wind: YldWind = Arc::new(Mutex::new(None));
     let ytf_wind: Ytf8Wind = Arc::new(Mutex::new(None));
-
 
     let ystud = Ystudio {
         ylab_state: ylab_state.clone(),
         ylab_cmd,
         yldest_state: yldest_state.clone(),
         yldest_cmd,
-        yld_wind: yld_wind,//yld_wind.clone(),
-        ytf_wind: ytf_wind,//ytf_wind.clone(),
+        yld_wind: yld_wind, //yld_wind.clone(),
+        ytf_wind: ytf_wind, //ytf_wind.clone(),
         ui: Arc::new(Mutex::new(Yui {
-                selected_port: None,
-                selected_version: None,
-                selected_channels: [true; 8], // <-- crashes, when differently
-                selected_bank: 1,
-                view: DataView::Plot,
-                lowpass_threshold: 45.,
-                fft_min: 2.,
-                fft_max: 40.,
+            selected_port: None,
+            selected_version: None,
+            selected_channels: [true; 8], // <-- crashes, when differently
+            selected_sensory: 1,
+            view: DataView::Plot,
+            lowpass_threshold: 45.,
+            fft_min: 2,
+            fft_max: 40,
         })),
     };
 
@@ -77,27 +73,16 @@ fn main() {
     // + ui, which captures UI related variables
     // let ystudio_1 = Ystudio::new(ylab_cmd, yldest_cmd);
     // let ystudio_2 = ystudio_1.clone();
-    
+
     // The thread to collect Ylab data is started
     // consuming copies of ylab state, data and command listener
     thread::spawn(move || {
-        ylab_thread(
-            ylab_state,
-            ylab_listen,
-            None,
-            None,
-            yldest_send,
-        );
+        ylab_thread(ylab_state, ylab_listen, None, None, yldest_send);
     });
-
 
     // Storage thread
     thread::spawn(move || {
-        yldest_thread( 
-            yldest_state,
-            yldest_listen,
-            yldest_rec,
-        );
+        yldest_thread(yldest_state, yldest_listen, yldest_rec);
     });
 
     // starting the egui, consuming the ystudio object.
