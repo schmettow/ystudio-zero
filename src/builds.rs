@@ -2,20 +2,18 @@
 
     /// A board with baud rate
     #[derive(PartialEq, Debug, Clone)]
-    
-    
-    
-    pub struct Board (usize);
+    pub struct Board (usize); // serial port rate
     
     /// Bank with number, interval, sensor array and optional labels
     #[derive(PartialEq, Debug, Copy, Clone)]
     pub enum Sensory { 
-        MOI([Option<Option<&'static str>>; N]),
-        AIR([Option<Option<&'static str>>; N]),
-        ADC(f32, [Option<Option<&'static str>>; N]), // Sensors can be de-activbated and label is optional
-        ACC(f32, [Option<Option<&'static str>>; N]), 
-        YXZ(f32, [Option<Option<&'static str>>; N]),
+        MOI([Sensor; N]),
+        AIR([Sensor; N]),
+        ADC(f32, [Sensor; N]),
+        YXZ(f32, [Sensor; N]),
     }
+
+    type Sensor = Option<&'static str>; // Label or None
 
     impl Sensory {
         pub fn label(&self) -> String {
@@ -30,67 +28,64 @@
     /// 
 
     #[derive(PartialEq, Debug, Clone)]
-    pub struct Build (&'static str, Board, [Option<Sensory>;N]);
+    pub struct Build<const S: usize> (&'static str, Board, [Sensory; S]);
 
     const GO: Board = Board(1_000_000);
     const PRO: Board = Board(2_000_000);
-    
-    pub static BUILDS: [Build; 7] =
-        [
-        Build("Pro Zero", PRO, 
-            [ 
-                Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), Some(None), Some(None), Some(None), Some(None)])), 
-                Some(Sensory::ADC(1.0/500.0, [  Some(None), Some(None), Some(None), Some(None), Some(None), Some(None), Some(None), Some(None)])), // 8 ADC
-                None, None, None, None, None, None]),
-        Build("Go Zero", GO, 
-            [ 
-            Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), None, None, None, None])), 
-            Some(Sensory::ADC(1.0/500.0, [  Some(None), Some(None), Some(None), None, None, None, None, None])), // 3 ADC
-            None, None, None, None, None, None]),
+
+    const PRO_ZERO: Build::<2> = Build::<2>("Pro Zero", PRO, 
+            [ Sensory::MOI([  Some("Blue Button"), None, None, None, None, None, None, None]), 
+              Sensory::ADC(1.0/500.0, [  Some("A_0"), Some("A_1"), Some("A_2"), Some("A_3"), Some("A_4"), Some("Pin"), Some("Pin"), Some("Pin")])
+              ]);
+
+    const GO_ZERO: Build::<2> =
+        Build::<2>("Pro Zero", PRO, 
+            [ Sensory::MOI([Some("GP20"), Some("GP21"), Some("GP22"), None, None, None, None, None]), 
+              Sensory::ADC(500.0, [  Some("Grv_1_W"), Some("Grv_1_Y"), Some("Pin"), Some("Int_T"), None, None, None, None]) // ADC
+              ]);
+    /*const GoMo
         Build("Go Mo", GO, 
             [ 
-            Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), None, None, None, None])), 
-            Some(Sensory::ADC(1.0/100.0, [  Some(None), Some(None), Some(None), None, None, None, None, None])), 
-            Some(Sensory::YXZ(1.0/200.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])),  
-            None, None, None, None, None
+            Sensory::MOI(           [  None, None, None, None, None, None, None, None]), 
+            Sensory::ADC(1.0/100.0, [  None, None, None, None, None, None, None, None]), 
+            Sensory::YXZ(1.0/200.0, [  None, None, None, None,None, None, None, None]),
             ]),
         Build("Go Mo 4", GO, 
             [ 
-            Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), None, None, None, None])), 
-            Some(Sensory::ADC(1.0/100.0, [  Some(None), Some(None), Some(None), None, None, None, None, None])), 
-            Some(Sensory::YXZ(1.0/200.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/200.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/200.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/200.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])),  
-            None, None
+            Sensory::MOI(           [  None, None, None, None, None, None, None, None]), 
+            Sensory::ADC(1.0/100.0, [  None, None, None, None, None, None, None, None]), 
+            Sensory::YXZ(1.0/200.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/200.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/200.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/200.0, [  None, None, None, None,None, None, None, None]),
             ]),
         Build("Go Mo 6", GO, [ 
-            Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), None, None, None, None])), 
-            Some(Sensory::ADC(1.0/100.0, [  Some(None), Some(None), Some(None), None, None, None, None, None])), 
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])),  
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/150.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None]))
+            Sensory::MOI(           [  None, None, None, None, None, None, None, None]), 
+            Sensory::ADC(1.0/100.0, [  None, None, None, None, None, None, None, None]), 
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None]),  
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/150.0, [  None, None, None, None,None, None, None, None])
             ]),
         Build("Go Mo 8", GO, [ 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])),  
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])),
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
-            Some(Sensory::YXZ(1.0/100.0, [  Some(None), Some(None), Some(None), Some(None),Some(None), Some(None), None, None])), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]),  
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]),
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
+            Sensory::YXZ(1.0/100.0, [  None, None, None, None,None, None, None, None]), 
             ]),
         Build("Go Emo", GO, 
             [ 
-            Some(Sensory::MOI(           [  Some(None), Some(None), Some(None), Some(None), None, None, None, None])), 
-            Some(Sensory::ADC(1.0/500.0, [  Some(None), Some(None), Some(None), None, None, None, None, None])), 
-            Some(Sensory::AIR(           [  Some(Some("CO2")), Some(Some("Humid")), Some(Some("Temp")), None, None, None, None, None])),  
-            None, None, None, None, None
+            Sensory::MOI(           [  None, None, None, None, None, None, None, None]), 
+            Sensory::ADC(1.0/500.0, [  None, None, None, None, None, None, None, None]), 
+            Sensory::AIR(           [  Some("CO2"), Some("Humid"), Some("Temp"), None, None, None, None, None]),  
+             None, None, None, None
             ]),
-        ];
+        ];*/
     
     
