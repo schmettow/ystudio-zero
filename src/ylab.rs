@@ -120,8 +120,8 @@ impl YLabVersion {
         }
     }
 
-    pub fn n_banks(&self) -> u8 {
-        self.bank_labels().len().clone() as u8
+    pub fn n_banks(&self) -> usize {
+        self.bank_labels().len().clone() as usize
     }
 
 }
@@ -366,8 +366,8 @@ pub mod data {
     /// 
     /// 
     
-    pub type YldWind = Arc<Mutex<Option<Yld>>>;
-    pub type Ytf8Wind = Arc<Mutex<Option<Ytf8>>>;
+    pub type YldWind = Arc<Mutex<Option<History<Yld>>>>;
+    pub type Ytf8Wind = Arc<Mutex<Option<History<Ytf8>>>>;
 
     #[derive(Copy, Clone, Debug)]
     pub struct Yld {
@@ -461,7 +461,7 @@ pub mod data {
     /// separate multiple sensor arrays, e.g. by ADC controller or if you
     /// use multi-variate sensors, such as multiple Yxz.
 
-    pub fn make_banks(n: u8, seconds: f32, max_len: usize) -> Banks {
+    pub fn make_banks(n: usize, seconds: f32, max_len: usize) -> Banks {
         let mut out = Vec::<History<Ytf8>>::new();
         for _ in 0..n {
             let new_bank = History::<Ytf8>::new(1..max_len, seconds);
