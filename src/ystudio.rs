@@ -1,12 +1,11 @@
 pub use eframe::egui;
 // use egui::load::LoadError;
-pub use egui::util::History;
-use egui::Ui;
 // use egui_plot::Plot;
 pub use crate::ylab::*;
 pub use crate::ylab::{data::*, YLabCmd, YLabState, YLabVersion};
 pub use crate::yldest::*;
 pub use egui_plot::PlotPoints;
+
 pub use std::sync::mpsc::Sender;
 pub use std::{sync::*, thread};
 
@@ -416,7 +415,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plot = egui_plot::Plot::new("plotter");
         let ui_state = ystud.ui.lock().unwrap().clone();
-        let yld_wind = ystud.yld_wind.lock().unwrap();
         let ytf_wind = ystud.ytf_wind.lock().unwrap();
         let selected = ui_state.selected_sensory as usize;
 
@@ -448,7 +446,6 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
                                 for r in ytf_in.iter() {
-                                    let ytf = r;
                                     ui.label(format!("{:?}", r));
                                 }
                             });
@@ -521,39 +518,37 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
 
 /// updates bottom panel with FFT
 pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
-    let ui_state = ystud.ui.lock().unwrap().clone();
-    let yld_wind = ystud.yld_wind.as_ref();
-    let ytf_wind = ystud.ytf_wind.as_ref();
-    let selected = ui_state.selected_bank as usize;
+    let yld_wind = ystud.yld_wind.clone();
+    let ytf_wind = ystud.ytf_wind.clone();
+    
     egui::TopBottomPanel::bottom("bottom_panel")
         .show(ctx, |ui| {
             let ylab_state = ystud.ylab_state.lock().unwrap().clone();
             let mut ui_state = ystud.ui.lock().unwrap();
             // First bank is events
-            if ui_state.selected_bank == 0 {return}
+            if ui_state.selected_sensory == 0 {return}
             
             match (ylab_state, ui_state.view) {
                 // Plot a spectrogramm
                 (YLabState::Reading {version, port_name:_}, DataView::PlotFft)
                 => {ui.heading("Distribution of Frequencies");
                     // fetching data from YLab
-                    let incoming= yld_wind.expect("YLD is None").lock().unwrap().clone();
+                    let incoming= yld_wind.lock().unwrap().clone().expect("YLD is None");
                     if incoming.is_empty() {
                         ui.label(format!("Sensory buffer empty"));
                         return
                     }
-                    let sensory 
-                            = &ytf_wind.expect("YTF is None").lock().unwrap().clone()[selected];
+                    let sensory = ytf_wind.lock().unwrap().clone().expect("YTF is None");
                     
                     if sensory.is_empty() {
                         ui.label(format!("No sensory histories available"));
                         return       // very important! Otherwise the below can crash because of emtoy buffer
                     }
-                    let duration = incoming.duration() as f64;
+                    let duration = incoming.duration() as usize;
                     let n_samples = incoming.len();
-                    let sample_rate= n_samples as f64/duration;
-                    let nyquist = sample_rate/2.; 
-                    let lowest_freq = 1./(duration * 2.);
+                    let sample_rate= n_samples/duration;
+                    let nyquist: usize = sample_rate/2; 
+                    let lowest_freq = 1/(duration * 2);
                     // Handling buffer under-runs
                     
                     let fft_size = version.fft_size();
@@ -563,12 +558,12 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     }
                     // Sliders for FFT range
                     ui.label("min (Hz)");
-                    let min_range_max =   // This because max() not implemented for float
+                    let min_range_max: usize =   // This because max() not implemented for float
                         match nyquist > ui_state.fft_max {
                             true => ui_state.fft_max,
                             false => nyquist
                         };
-                    let min_range = lowest_freq ..= (min_range_max - 3.);
+                    let min_range = lowest_freq ..= (min_range_max - 3);
                     let fft_min_slider 
                         = egui::widgets::Slider::new(&mut ui_state.fft_min, min_range)
                         .clamping(egui::SliderClamping::Always)
@@ -576,7 +571,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                         .fixed_decimals(3);
                     ui.add(fft_min_slider);
                     ui.label("max (Hz)");
-                    let max_range = (ui_state.fft_min + 3.)..=(nyquist);
+                    let max_range = (ui_state.fft_min + 3)..=(nyquist);
                     let fft_max_slider 
                         = egui::widgets::Slider::new(&mut ui_state.fft_max, max_range)
                         .clamping(egui::SliderClamping::Always)
@@ -605,7 +600,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                     plot = plot
                             .auto_bounds([true, true].into())
                             //.include_x(ui_state.fft_min)
-                            .include_x(ui_state.fft_max)
+                            .include_x(ui_state.fft_max as f64)
                             .legend(egui_plot::Legend::default());
                     
                     // CLOSURE TIME!! Mind the brackets.
@@ -627,7 +622,7 @@ pub fn update_bottom_panel(ctx: &egui::Context, ystud: &mut Ystudio) {
                                 ui.label("Incorrect range");
                                 return
                             }*/
-                            if ui_state.fft_max <= ui_state.fft_min + 2. {
+                            if ui_state.fft_max <= ui_state.fft_min + 2 {
                                 panic!("Incorrect frequency band {} .. {}", ui_state.fft_min, ui_state.fft_max)
                             }
                             let freq_range
