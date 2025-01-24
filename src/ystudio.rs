@@ -436,7 +436,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                 //.auto_bounds_y()
                                 .legend(egui_plot::Legend::default());
                                 plot.show(ui, |plot_ui| {                
-                                    let rate = incoming.rate().unwrap(); // safe because above we check for empty buffer
+                                    if let Some(rate) = incoming.rate() { // safe because above we check for empty buffer
                                     let series  = incoming.split();
                                     for (chan, active) in ui_state.selected_channels.iter().enumerate() {
                                         // inactive channels
@@ -476,6 +476,7 @@ pub fn update_central_panel(ctx: &egui::Context, ystud: &mut Ystudio)
                                             }
                                         }     
                                     }
+                                }
                             });
                     },
                 }
