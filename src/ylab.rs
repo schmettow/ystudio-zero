@@ -504,9 +504,10 @@ pub mod data {
                 }
             
             // extract dev number
-            let dev = cols[1].trim().parse::<u8>();
-            if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
+            //let dev = cols[1].trim().parse::<u8>();
+            //if dev.is_err() {return Err(ParseError::Dev(cols[1].to_string()))}
             // extract sensory number
+            let dev: u8 = 1; // only one YLab per Ystudio, at the moment.
             let sensory = cols[1].trim().parse::<u8>();
             if sensory.is_err() {return Err(ParseError::Sensory(cols[1].to_string()))}
             // reading the remaining 8 cols
@@ -520,7 +521,7 @@ pub mod data {
                     Err(_) => read[chn] = 0.0
                 }
             }
-            Ok(Ytf8{dev: dev.unwrap(), sensory: sensory.unwrap(), time: time, read: read})
+            Ok(Ytf8{dev: dev, sensory: sensory.unwrap(), time: time, read: read})
         }
 
         #[allow(dead_code)]
