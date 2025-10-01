@@ -1,3 +1,5 @@
+![Screenshot of Ystudio Data Monitor](docs/Ystudio_Run.png)
+
 # Ystudio Zero
 
 YLab Edge is a set of firmwares for capturing biosignals with 
